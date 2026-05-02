@@ -16,68 +16,76 @@ test.describe('E2E: Booking Data Flow', () => {
     token = await getToken(request);
   });
 
-  test('create -> get -> update -> patch -> delete flow', { tag: '@smoke' }, async ({ request }, testInfo) => {
+  test('create → get → update → patch → delete flow', { tag: '@smoke' }, async ({ request }, testInfo) => {
     const initialData = newBooking();
     const updatedData = newBooking({ firstname: 'Updated', lastname: 'AfterPut' });
+    let bookingId!: number;
 
-    // ── 1. Create ──────────────────────────────────────────────────────
-    let res = await request.post('/booking', { data: initialData });
-    await attachReqRes(testInfo, { method: 'POST', body: initialData }, res, 'step 1 create');
-    expect(res.status()).toBe(200);
-    let body = await res.json();
-    const bookingId: number = body.bookingid;
-    expect(bookingId).toBeTruthy();
-    expect(body.booking.firstname).toBe(initialData.firstname);
-
-    // ── 2. Get and verify created data ─────────────────────────────────
-    res = await request.get(`/booking/${bookingId}`);
-    await attachReqRes(testInfo, { method: 'GET' }, res, 'step 2 get');
-    expect(res.status()).toBe(200);
-    body = await res.json();
-    expect(body.firstname).toBe(initialData.firstname);
-    expect(body.lastname).toBe(initialData.lastname);
-
-    // ── 3. Update (PUT) — full payload required ────────────────────────
-    res = await request.put(`/booking/${bookingId}`, {
-      headers: { Cookie: `token=${token}` },
-      data: updatedData,
+    await test.step('create booking', async () => {
+      const res = await request.post('/booking', { data: initialData });
+      await attachReqRes(testInfo, { method: 'POST', body: initialData }, res, 'create');
+      expect(res.status()).toBe(200);
+      const body = await res.json();
+      bookingId = body.bookingid;
+      expect(bookingId).toBeTruthy();
+      expect(body.booking.firstname).toBe(initialData.firstname);
     });
-    await attachReqRes(testInfo, { method: 'PUT', body: updatedData }, res, 'step 3 put');
-    expect(res.status()).toBe(200);
-    body = await res.json();
-    expect(body.firstname).toBe('Updated');
-    expect(body.lastname).toBe('AfterPut');
 
-    // ── 4. Patch (only one field) ──────────────────────────────────────
-    const patchPayload = { lastname: 'PatchedLast' };
-    res = await request.patch(`/booking/${bookingId}`, {
-      headers: { Cookie: `token=${token}` },
-      data: patchPayload,
+    await test.step('get and verify created data', async () => {
+      const res = await request.get(`/booking/${bookingId}`);
+      await attachReqRes(testInfo, { method: 'GET' }, res, 'get');
+      expect(res.status()).toBe(200);
+      const body = await res.json();
+      expect(body.firstname).toBe(initialData.firstname);
+      expect(body.lastname).toBe(initialData.lastname);
     });
-    await attachReqRes(testInfo, { method: 'PATCH', body: patchPayload }, res, 'step 4 patch');
-    expect(res.status()).toBe(200);
-    body = await res.json();
-    expect(body.firstname).toBe('Updated');
-    expect(body.lastname).toBe('PatchedLast');
 
-    // ── 5. Verify state via GET ────────────────────────────────────────
-    res = await request.get(`/booking/${bookingId}`);
-    await attachReqRes(testInfo, { method: 'GET' }, res, 'step 5 verify');
-    expect(res.status()).toBe(200);
-    body = await res.json();
-    expect(body.firstname).toBe('Updated');
-    expect(body.lastname).toBe('PatchedLast');
-
-    // ── 6. Delete ──────────────────────────────────────────────────────
-    res = await request.delete(`/booking/${bookingId}`, {
-      headers: { Cookie: `token=${token}` },
+    await test.step('full update (PUT)', async () => {
+      const res = await request.put(`/booking/${bookingId}`, {
+        headers: { Cookie: `token=${token}` },
+        data: updatedData,
+      });
+      await attachReqRes(testInfo, { method: 'PUT', body: updatedData }, res, 'put');
+      expect(res.status()).toBe(200);
+      const body = await res.json();
+      expect(body.firstname).toBe('Updated');
+      expect(body.lastname).toBe('AfterPut');
     });
-    await attachReqRes(testInfo, { method: 'DELETE' }, res, 'step 6 delete');
-    expect(res.status()).toBe(201);
 
-    // ── 7. Verify deletion ─────────────────────────────────────────────
-    res = await request.get(`/booking/${bookingId}`);
-    await attachReqRes(testInfo, { method: 'GET' }, res, 'step 7 verify deleted');
-    expect(res.status()).toBe(404);
+    await test.step('partial update (PATCH)', async () => {
+      const patchPayload = { lastname: 'PatchedLast' };
+      const res = await request.patch(`/booking/${bookingId}`, {
+        headers: { Cookie: `token=${token}` },
+        data: patchPayload,
+      });
+      await attachReqRes(testInfo, { method: 'PATCH', body: patchPayload }, res, 'patch');
+      expect(res.status()).toBe(200);
+      const body = await res.json();
+      expect(body.firstname).toBe('Updated');
+      expect(body.lastname).toBe('PatchedLast');
+    });
+
+    await test.step('verify state via GET', async () => {
+      const res = await request.get(`/booking/${bookingId}`);
+      await attachReqRes(testInfo, { method: 'GET' }, res, 'verify');
+      expect(res.status()).toBe(200);
+      const body = await res.json();
+      expect(body.firstname).toBe('Updated');
+      expect(body.lastname).toBe('PatchedLast');
+    });
+
+    await test.step('delete booking', async () => {
+      const res = await request.delete(`/booking/${bookingId}`, {
+        headers: { Cookie: `token=${token}` },
+      });
+      await attachReqRes(testInfo, { method: 'DELETE' }, res, 'delete');
+      expect(res.status()).toBe(201);
+    });
+
+    await test.step('verify deletion (404 on subsequent GET)', async () => {
+      const res = await request.get(`/booking/${bookingId}`);
+      await attachReqRes(testInfo, { method: 'GET' }, res, 'verify deleted');
+      expect(res.status()).toBe(404);
+    });
   });
 });

@@ -18,8 +18,9 @@
   },
   "include": [
     "tests/**/*",
-    "api/**/*",
-    "fixtures/**/*",
+    "clients/**/*",
+    "schemas/**/*",
+    "helpers/**/*",
     "test-data/**/*",
     "config/**/*"
   ],

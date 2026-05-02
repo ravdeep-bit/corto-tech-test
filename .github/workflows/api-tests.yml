@@ -1,0 +1,86 @@
+name: API Tests (Playwright)
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'api-automation/**'
+      - '.github/workflows/api-tests.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'api-automation/**'
+      - '.github/workflows/api-tests.yml'
+
+jobs:
+  test:
+    name: API Tests
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./api-automation
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read Node version
+        id: nvm
+        run: echo "version=$(cat ../.nvmrc)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.nvm.outputs.version }}
+          cache: 'npm'
+          cache-dependency-path: api-automation/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run lint
+
+      - name: Run Playwright tests
+        run: npm test
+        env:
+          CI: true
+
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: api-playwright-report
+          path: api-automation/playwright-report/
+          retention-days: 30
+
+  bug-tracking:
+    name: Bug-surfacing tests (non-blocking)
+    needs: test
+    if: always()
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: ./api-automation
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read Node version
+        id: nvm
+        run: echo "version=$(cat ../.nvmrc)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.nvm.outputs.version }}
+          cache: 'npm'
+          cache-dependency-path: api-automation/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run @bugs tier (REST-compliance, intentionally failing)
+        run: npm run test:bugs
+        env:
+          CI: true

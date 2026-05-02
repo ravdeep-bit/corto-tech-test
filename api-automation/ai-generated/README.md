@@ -18,7 +18,7 @@ Generate Playwright API tests for the POST /booking endpoint of restful-booker
 in TypeScript. Include positive and negative test cases.
 ```
 
-I deliberately under-specified — that's what most engineers actually type when they reach for AI mid-task. I wanted to see what comes out without spoon-feeding it our framework conventions, and what I'd change as a reviewer.
+I deliberately under-specified — that's what most engineers actually type when they reach for AI mid-task. I wanted to see what comes out.
 
 ## Files
 
@@ -41,10 +41,10 @@ All four are documentation only — not picked up by the test runner.
 | 3 | Replaced hardcoded future dates (`'2026-05-01'`) with `futureDate(n)` helper | Hardcoded dates silently roll into the past. Future-relative never decays. |
 | 4 | Asserted what the API *actually* returns (200 on bad creds, 500 on missing fields) — not what AI assumed | AI guesses REST conventions (`401`, `400`) without verifying. A single Postman session reveals the real behaviour. REST-correct expectations preserved separately as failing tests in `tests/bugs/`. |
 | 5 | Replaced `toHaveProperty('token')` with `toEqual({ token: expect.any(String) })` | The original lets extra fields slip through. Strict shape rejects unknowns. |
-| 6 | One comprehensive schema-by-example check on the positive case + Zod schemas in `schemas/booking.ts` | Fragmented per-test field assertions get out of sync. Centralised contract enforcement catches drift. |
+| 6 | One comprehensive schema-by-example check on the positive case + JSON Schema files in `schemas/` validated by ajv | Fragmented per-test field assertions get out of sync. Centralised contract enforcement catches drift. |
 | 7 | Added 7 missing/empty/null edge cases | Original had 2 negatives. AI rarely thinks about null/empty/typed-wrong inputs unless prompted. |
 | 8 | Parameterised 7 hand-written negatives into one loop over a dataset | Adding the next case is a one-line edit to `authData.ts`, not a copy-paste of test code. |
-| 9 | Externalised credentials to `test-data/authData.ts`, sourced from env vars | Inline creds don't scale to multi-env, are harder to rotate, bury config in code. |
+| 9 | Externalised credentials to `test-data/authData.ts`, sourced from env vars | Hardcoded creds inside the spec can't be overridden per environment without editing test code. Pulling them from env vars means CI / staging / local each get their own creds without touching the spec. |
 | 10 | Added `Booking` type imports | Without them, payloads are implicit `any` and typos compile fine. |
 | 11 | Added token-uniqueness check (two `/auth` calls, assert tokens differ) | Catches a real bug class — server caching/reusing tokens. AI didn't think to test this. |
 | 12 | Added per-test factory data + `afterAll(cleanupBookings)` for booking specs | Restful Booker is a shared sandbox. Leaving cruft makes filter tests flaky for whoever runs next. |
@@ -52,16 +52,14 @@ All four are documentation only — not picked up by the test runner.
 | 14 | Replaced `request.delete('/booking/9999999')` with create+delete pattern | Magic IDs decay on shared APIs. Create→delete→assert produces a deterministically-missing ID owned by the test. |
 | 15 | Added `@smoke` tag on the critical happy path | So the critical path runs in the CI smoke gate. Original had no markers. |
 
-## Why the corrected tests assert REST-standard status (not the bug)
+## How the corrected tests handle the API's REST deviations
 
-For two specific deviations — `POST /auth` invalid creds returning `200` instead of `401`, missing-fields returning `500` instead of `400` — the corrected version asserts what the API **should** return, not what it does. Reasoning:
+The two corrected files take different approaches to the same problem (the API returning non-REST status codes):
 
-- Tests document the **correct contract**, not the bug we're tolerating.
-- A red test in CI is a daily reminder the bug exists.
-- When the API is fixed, the test passes — no annotation cleanup needed.
-- Failing assertions are bug tickets in code form: file, line, expected vs actual.
+- **`auth-corrected-version.ts`** asserts the *actual* response (`200` + `{ reason: 'Bad credentials' }`). The REST-correct expectation (`401`) moved to the project's bug-surfacing tier (`tests/bugs/rest-compliance.spec.ts`, BUG-4).
+- **`booking-corrected-version.ts`** asserts the *REST-correct* response (`400` for missing fields). Those tests fail intentionally — failing tests *are* the bug tickets.
 
-The actual-returns assertions live in the main suite (`npm test` stays green); REST-correct expectations live in `tests/bugs/rest-compliance.spec.ts` (`npm run test:bugs`).
+The bug-surfacing tier in the main project is the refined version: keep the main suite green by asserting actual behaviour, and document REST-correctness as a separate intentionally-failing tier. Either approach honours the principle: tests shouldn't paper over the bug.
 
 ## What the AI got right
 
@@ -70,9 +68,9 @@ The AI version wasn't garbage. It correctly:
 - Identified the right endpoint and HTTP method
 - Used a structurally valid payload
 - Used Playwright's built-in `request` fixture (not raw fetch / axios)
-- Asserted on status code (even if poorly)
+- Asserted on status code (even if on assumption)
 
-Roughly the level of a confident first draft from a junior engineer. The kind of thing that works — the test would pass — but isn't shaped for a long-lived, multi-developer codebase. Which is exactly the gap a senior reviewer is paid to close.
+Roughly the level of a confident first draft. The kind of thing that works — the test would pass — but isn't shaped for a long-lived, multi-developer codebase. That gap is what review closes.
 
 ## Two-pass review
 
@@ -81,7 +79,7 @@ The auth corrected version went through two passes:
 1. **First pass** caught wrong status codes (`401` → `200`), weak `toHaveProperty` schema, missing edge cases.
 2. **Second pass** caught hardcoded credentials in the spec and that 7 hand-written negatives should be parameterised from a dataset.
 
-Second-pass findings aren't about correctness — the first-pass code worked. They're about scale: code that works at small N becomes a refactor target at larger N. AI doesn't see this. The QE's job is to come back and ask *"is the data where it belongs? are the patterns DRY? would adding the next case be a one-line change?"*
+Second-pass findings aren't about correctness — the first-pass code worked. They're about scale: code that works at small N becomes a refactor target at larger N. AI doesn't see this. The QE's job is to come back and ask *"is the data where it belongs? Would adding the next case be a one-line change?"*
 
 ## My takeaway on AI-assisted test writing
 

@@ -1,0 +1,57 @@
+name: UI Tests (Playwright)
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'ui-automation/**'
+      - '.github/workflows/ui-tests.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'ui-automation/**'
+      - '.github/workflows/ui-tests.yml'
+
+jobs:
+  test:
+    name: UI Tests
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./ui-automation
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read Node version
+        id: nvm
+        run: echo "version=$(cat ../.nvmrc)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ steps.nvm.outputs.version }}
+          cache: 'npm'
+          cache-dependency-path: ui-automation/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run lint
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: npm test
+        env:
+          CI: true
+
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-playwright-report
+          path: ui-automation/playwright-report/
+          retention-days: 30
