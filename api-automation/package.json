@@ -1,0 +1,27 @@
+{
+  "name": "restful-booker-api-tests",
+  "version": "1.0.0",
+  "description": "Playwright API testing suite for Restful Booker API",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test --grep-invert @bugs",
+    "test:all": "playwright test",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:bugs": "playwright test --grep @bugs",
+    "test:headed": "playwright test --headed",
+    "test:report": "playwright show-report",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.48.2",
+    "@types/node": "^20.10.6",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1"
+  }
+}

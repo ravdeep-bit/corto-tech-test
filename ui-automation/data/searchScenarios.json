@@ -1,0 +1,33 @@
+[
+  {
+    "description": "exact match - Git Pocket Guide",
+    "searchTerm": "Git Pocket Guide",
+    "expectEmpty": false,
+    "expectedTitleContains": "Git Pocket Guide",
+    "smoke": true
+  },
+  {
+    "description": "partial match - Speaking",
+    "searchTerm": "Speaking",
+    "expectEmpty": false,
+    "expectedTitleContains": "Speaking"
+  },
+  {
+    "description": "case insensitive - git pocket guide",
+    "searchTerm": "git pocket guide",
+    "expectEmpty": false,
+    "expectedTitleContains": "Git"
+  },
+  {
+    "description": "no results - NonExistentBook123",
+    "searchTerm": "NonExistentBook123",
+    "expectEmpty": true,
+    "expectedTitleContains": null
+  },
+  {
+    "description": "partial word search - JavaScript",
+    "searchTerm": "JavaScript",
+    "expectEmpty": false,
+    "expectedTitleContains": "JavaScript"
+  }
+]

@@ -1,0 +1,32 @@
+# Single root .gitignore — applies recursively to ui-automation/ and api-automation/.
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Test artifacts (Playwright)
+test-results/
+playwright-report/
+blob-report/
+
+# Logs
+*.log
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
