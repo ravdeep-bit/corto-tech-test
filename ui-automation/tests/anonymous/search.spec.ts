@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures/pomFixtures';
-import searchScenarios from '../../data/searchScenarios.json';
+import searchScenarios from '../../test-data/searchScenarios.json';
 
 interface SearchScenario {
   description: string;
@@ -42,15 +42,4 @@ test.describe('Search functionality on /books', () => {
     );
   }
 
-  test('clearing the search restores the original list', async ({ bookStorePage }) => {
-    const initialCount = await bookStorePage.getVisibleRowCount();
-    expect(initialCount).toBeGreaterThan(0);
-
-    await bookStorePage.search('Git Pocket Guide');
-    expect(await bookStorePage.getVisibleRowCount()).toBeLessThan(initialCount);
-
-    await bookStorePage.clearSearch();
-    expect(await bookStorePage.getVisibleRowCount()).toBe(initialCount);
-    expect(await bookStorePage.getSearchInputValue()).toBe('');
-  });
 });

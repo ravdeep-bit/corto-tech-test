@@ -1,10 +1,12 @@
 import { APIRequestContext } from '@playwright/test';
 
-// Demoqa Bookstore API client. Used by the e2e cleanup hook to wipe the
-// `tester` user's collection between tests via Bearer auth.
+// Wrappers for demoqa's `/BookStore/v1/*` controller. Pure HTTP, page-free —
+// caller passes a clean `APIRequestContext` and pre-extracted Bearer creds;
+// cookie/Page bridging lives in `helpers/cleanCollection.ts`.
 //
-// `deleteAllBooksApi` accepts 200 or 204 — demoqa has been observed to
-// return both for a successful clear.
+// Future wrappers under the same namespace (e.g. `addBookToCollectionApi`,
+// `getCollectionApi`) land here next to `deleteAllBooksApi`.
+
 export async function deleteAllBooksApi(
   request: APIRequestContext,
   params: { userId: string; token: string },
@@ -13,7 +15,7 @@ export async function deleteAllBooksApi(
   const res = await request.delete(`/BookStore/v1/Books?UserId=${userId}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (![200, 204].includes(res.status())) {
+  if (res.status() !== 204) {
     throw new Error(`API delete-all failed: status ${res.status()}, body: ${await res.text()}`);
   }
 }

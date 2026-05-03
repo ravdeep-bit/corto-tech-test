@@ -3,6 +3,7 @@ import { LoginPage } from '../pages/LoginPage';
 import { ProfilePage } from '../pages/ProfilePage';
 import { BookStorePage } from '../pages/BookStorePage';
 import { BookDetailsPage } from '../pages/BookDetailsPage';
+import { HeaderNav } from '../pages/HeaderNav';
 
 // POM injection fixtures. Each test gets fresh POMs bound to its own page.
 type Fixtures = {
@@ -10,6 +11,7 @@ type Fixtures = {
   profilePage: ProfilePage;
   bookStorePage: BookStorePage;
   bookDetailsPage: BookDetailsPage;
+  headerNav: HeaderNav;
 };
 
 export const test = base.extend<Fixtures>({
@@ -24,6 +26,9 @@ export const test = base.extend<Fixtures>({
   },
   bookDetailsPage: async ({ page }, use) => {
     await use(new BookDetailsPage(page));
+  },
+  headerNav: async ({ page }, use) => {
+    await use(new HeaderNav(page));
   },
 });
 

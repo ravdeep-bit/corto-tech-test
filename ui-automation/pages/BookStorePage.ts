@@ -1,14 +1,19 @@
-import { expect } from '@playwright/test';
-import { BasePage } from './BasePage';
+import { expect, Locator, Page } from '@playwright/test';
 
 // /books. Title links use `?search=<isbn>` as the row anchor.
-export class BookStorePage extends BasePage {
-  private readonly searchInput = this.page.getByRole('textbox', { name: 'Type to search' });
-  private readonly bookTable = this.page.getByRole('table');
-  private readonly bookTitleLinks = this.page.locator('table a[href*="search="]');
+export class BookStorePage {
+  private readonly searchInput: Locator;
+  private readonly bookTable: Locator;
+  private readonly bookTitleLinks: Locator;
+
+  constructor(protected page: Page) {
+    this.searchInput = page.getByRole('textbox', { name: 'Type to search' });
+    this.bookTable = page.getByRole('table');
+    this.bookTitleLinks = page.locator('table a[href*="search="]');
+  }
 
   async goto(): Promise<void> {
-    await super.goto('/books');
+    await this.page.goto('/books', { waitUntil: 'domcontentloaded' });
     await this.waitForPageReady();
   }
 
@@ -20,11 +25,6 @@ export class BookStorePage extends BasePage {
   // Client-side filter — short DOM-settle wait, no network call to await.
   async search(term: string): Promise<void> {
     await this.searchInput.fill(term);
-    await this.page.waitForTimeout(500);
-  }
-
-  async clearSearch(): Promise<void> {
-    await this.searchInput.clear();
     await this.page.waitForTimeout(500);
   }
 
@@ -45,10 +45,6 @@ export class BookStorePage extends BasePage {
 
   async hasNoResults(): Promise<boolean> {
     return (await this.bookTitleLinks.count()) === 0;
-  }
-
-  async getSearchInputValue(): Promise<string> {
-    return this.searchInput.inputValue();
   }
 
   async openBookByTitle(title: string): Promise<void> {

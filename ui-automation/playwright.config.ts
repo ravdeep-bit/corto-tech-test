@@ -7,7 +7,15 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // workers: 1 — demoqa enforces single session per user, so two logged-in
+  // tests running in parallel would race each other into auth failures (a
+  // new login on the shared `tester` account invalidates the older token).
+  // Storage state isn't a workaround — see `tests/logged-in/e2e-flow.spec.ts`
+  // header for the three demoqa quirks that defeat it (single-session,
+  // mismatched-token sensitivity, cookie/localStorage gap).
+  // To scale beyond serial execution, switch to per-test user registration
+  // via `POST /Account/v1/User` (deterministic via isolation, not via locking).
+  workers: 1,
   // HTML report auto-opens on failure for fast triage; never auto-opens in CI.
   reporter: [['html', { open: 'on-failure' }], ['list']],
 
@@ -24,10 +32,15 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
 
-  // Chromium default. Firefox/WebKit via `npm run test:cross-browser`.
+  // Chromium default for fast local + CI runs. Other projects opt-in via npm scripts:
+  //   `test:cross-browser` → all desktop browsers
+  //   `test:mobile`        → Pixel 5 (Chrome) + iPhone 13 (Safari)
+  // demoqa is responsive; existing specs are designed to work across viewports.
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
     { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
     { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+    { name: 'mobile-chrome', use: { ...devices['Pixel 5'] } },
+    { name: 'mobile-safari', use: { ...devices['iPhone 13'] } },
   ],
 });

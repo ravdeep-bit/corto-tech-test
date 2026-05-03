@@ -1,8 +1,6 @@
-import { Page, request as playwrightRequest } from '@playwright/test';
 import { test, expect } from '../../fixtures/pomFixtures';
-import { validCredentials } from '../../fixtures/credentials';
-import { deleteAllBooksApi } from '../../clients/books';
-import { BASE_URL } from '../../config/env';
+import { validCredentials } from '../../test-data/testCredentials';
+import { cleanCollection } from '../../helpers/cleanCollection';
 
 // Authenticated UI journey: search → add → verify → delete → verify.
 //
@@ -19,20 +17,6 @@ import { BASE_URL } from '../../config/env';
 //
 // API cleanup runs both before (defensive — clean start regardless of prior
 // state) and after (clean exit for the next run) each test.
-
-async function cleanCollection(page: Page): Promise<void> {
-  const cookies = await page.context().cookies();
-  const userId = cookies.find((c) => c.name === 'userID')?.value;
-  const token = cookies.find((c) => c.name === 'token')?.value;
-  if (!userId || !token) return;
-
-  const apiCtx = await playwrightRequest.newContext({ baseURL: BASE_URL });
-  try {
-    await deleteAllBooksApi(apiCtx, { userId, token });
-  } finally {
-    await apiCtx.dispose();
-  }
-}
 
 test.describe('E2E: logged-in user journey', () => {
   test.describe.configure({ mode: 'serial' });

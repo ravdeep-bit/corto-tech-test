@@ -2,7 +2,7 @@
 import { APIResponse, TestInfo } from '@playwright/test';
 
 // URL is read from res.url() so callers don't repeat the endpoint.
-export interface ApiRequest {
+interface ApiRequest {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
 }

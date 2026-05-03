@@ -1,10 +1,9 @@
-// /booking helpers — setup factory + afterAll cleanup. Owns the `Booking` type
-// (kept in sync with schemas/booking.json by hand — small surface, one definition).
+// /booking helpers — setup factory + afterAll cleanup. 
 import { APIRequestContext, TestInfo } from '@playwright/test';
 import { newBooking } from '../test-data/bookingData';
 import { attachReqRes } from '../helpers/reportAttachments';
 
-export interface BookingDates {
+interface BookingDates {
   checkin: string; // YYYY-MM-DD
   checkout: string; // YYYY-MM-DD
 }
@@ -41,8 +40,7 @@ export async function createBookingForTest(
   return { bookingid: body.bookingid, payload };
 }
 
-// Deletes every booking ID in the `ids` array. Errors are swallowed so a
-// flaky cleanup can't mask the real test failure. Use from afterAll.
+// Deletes every booking ID in the `ids` array. Use from afterAll.
 export async function cleanupBookings(request: APIRequestContext, token: string | null, ids: number[]): Promise<void> {
   if (!token) return;
   while (ids.length > 0) {

@@ -1,15 +1,21 @@
-import { expect } from '@playwright/test';
-import { BasePage } from './BasePage';
+import { expect, Locator, Page } from '@playwright/test';
 
 // /login. Anchors on stable IDs (#userName, #password, #login).
-export class LoginPage extends BasePage {
-  private readonly userNameInput = this.page.locator('#userName');
-  private readonly passwordInput = this.page.locator('#password');
-  private readonly loginButton = this.page.locator('#login');
-  private readonly errorMessage = this.page.locator('#name'); // demoqa renders auth errors here
+export class LoginPage {
+  private readonly userNameInput: Locator;
+  private readonly passwordInput: Locator;
+  private readonly loginButton: Locator;
+  private readonly errorMessage: Locator; // demoqa renders auth errors here
+
+  constructor(protected page: Page) {
+    this.userNameInput = page.locator('#userName');
+    this.passwordInput = page.locator('#password');
+    this.loginButton = page.locator('#login');
+    this.errorMessage = page.locator('#name');
+  }
 
   async goto(): Promise<void> {
-    await super.goto('/login');
+    await this.page.goto('/login', { waitUntil: 'domcontentloaded' });
     await expect(this.loginButton).toBeVisible();
   }
 

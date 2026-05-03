@@ -5,41 +5,38 @@ Submission for the CORTO QE technical test. Two suites in one repo:
 - **Task 1 (`ui-automation/`)** — UI automation against https://demoqa.com using Playwright + TypeScript
 - **Task 2 (`api-automation/`)** — API automation against https://restful-booker.herokuapp.com using Playwright's `request` fixture + ajv for response contracts
 
-I've kept everything in a single repo because the patterns and tooling overlap heavily and it keeps the CI config simple. Each task can be run independently — see [Running tests](#running-tests).
+Single repo because the patterns and tooling overlap heavily and CI stays simple. Each task runs independently — see [Running tests](#running-tests).
 
 ## Why these tools
 
-**Playwright + TypeScript for both UI and API.** Auto-waiting eliminates most of the flakiness I'd otherwise have to defend against with explicit waits, the trace viewer is genuinely the best debugging tool I've used, and using one stack for UI *and* API means shared concepts (config, retries, reporters), one onboarding story, one CI matrix. I went with Playwright because cross-browser is free, the API testing fixture is first-class, and I prefer TypeScript for this kind of project.
+**Playwright for both UI and API.** Auto-waiting eliminates most flakiness, the trace viewer is the best debugging tool I've used, and one stack means shared config / retries / reporters / CI matrix. Cross-browser is free, the API `request` fixture is first-class.
 
-**Playwright's built-in `request` fixture for the API suite, not Postman/Newman or Jest+Supertest.** Could have used Postman collections but it's harder to demonstrate proper design patterns in one. Writing it in code lets me show the clients/schemas/helpers separation clearly. Could have used Jest+Supertest but that's two test runners in one repo for marginal benefit — the `request` fixture covers everything I need and shares config with the UI suite.
+**TypeScript over JavaScript.** Strong types catch errors at edit-time — Playwright's API, factory shapes, `Locator` types in POMs, schema-derived response shapes. `tsc --noEmit` is a free pre-test sanity gate that surfaces typos and contract drift before any test runs. The cost is one config file; the payoff compounds every refactor.
 
-**ajv + JSON Schema files for response contract validation.** Schemas live as `.json` artefacts in `api-automation/schemas/` — language-agnostic, readable in ten seconds without any TypeScript knowledge. `additionalProperties: false` and explicit `required: [...]` arrays catch silent contract drift. I considered Zod (TS-native, would give type inference) but chose JSON Schema because the artefacts themselves are clearer documentation.
+**ajv + JSON Schema for response contracts.** Schemas live as `.json` artefacts in `api-automation/schemas/` — language-agnostic, readable in ten seconds without TypeScript. `additionalProperties: false` and explicit `required: [...]` arrays catch silent contract drift. Considered Zod but chose JSON Schema because the artefacts are clearer documentation.
 
-**No other extras.** The brief asked for tests, not infrastructure. Test data is small and meaningful (`newBooking({ totalprice: 0 })`); env handling is `process.env.X || 'default'`. Only `ajv` and `ajv-formats` are added beyond Playwright + TypeScript.
+**Minimal extras.** Test data is small and meaningful (`newBooking({ totalprice: 0 })`); env handling is `process.env.X || 'default'`. Only `ajv` and `ajv-formats` are added beyond Playwright + TypeScript.
 
 ## Project structure
 
 ```
 corto-tech-test/
 ├── .github/workflows/             # CI — path-filtered per sub-project
-│   ├── ui-tests.yml               # UI suite job (runs on ui-automation/** changes)
-│   └── api-tests.yml              # API suite job + non-blocking @bugs job
+│   ├── ui-tests.yml
+│   └── api-tests.yml              # main suite + non-blocking @bugs job
 ├── .nvmrc                         # Node version pin (CI + nvm)
 ├── ui-automation/                 # Task 1 — Playwright UI
 │   ├── playwright.config.ts
 │   ├── pages/                     # Page Object Model
-│   ├── fixtures/                  # POM injection fixtures + credentials
-│   ├── clients/books.ts           # Demoqa Bookstore API helper (e2e cleanup)
-│   ├── data/                      # Data-driven search scenarios (JSON)
+│   ├── fixtures/pomFixtures.ts    # POM dependency injection
+│   ├── clients/bookstore.ts       # Demoqa /BookStore/v1/* HTTP wrappers
+│   ├── helpers/cleanCollection.ts # Page → cookies → API cleanup bridge
+│   ├── test-data/                 # Search scenarios + credentials (env-derived)
 │   ├── config/env.ts              # Centralised env access
 │   ├── types/                     # Shared TS types
 │   └── tests/
-│       ├── anonymous/             # Fresh browser, no login required
-│       │   ├── login.spec.ts                    # Login form: success, invalid password, empty submission
-│       │   ├── search.spec.ts                   # Data-driven search (5 scenarios) + clear-search
-│       │   └── book-details.spec.ts             # Metadata, URL/ISBN consistency, auth-boundary
-│       └── logged-in/             # UI login per test, serial within file
-│           └── e2e-flow.spec.ts                 # search → add → re-add → verify → delete → verify
+│       ├── anonymous/             # login.spec, search.spec, book-details.spec
+│       └── logged-in/             # e2e-flow.spec, logout.spec
 ├── api-automation/                # Task 2 — Playwright API + ajv
 │   ├── playwright.config.ts
 │   ├── clients/                   # auth + booking helpers (re-exports Booking type)
@@ -48,39 +45,28 @@ corto-tech-test/
 │   ├── test-data/                 # Booking factory, auth + filter datasets
 │   ├── config/env.ts
 │   ├── tests/
-│   │   ├── auth.spec.ts                         # POST /auth (1 happy + 7 negative + token uniqueness)
-│   │   ├── ping.spec.ts                         # GET /ping (health-check smoke gate)
-│   │   ├── booking/
-│   │   │   ├── create-booking.spec.ts           # POST /booking (positive + negative + edge cases)
-│   │   │   ├── get-booking.spec.ts              # GET /booking + /booking/:id (with filter)
-│   │   │   ├── update-booking.spec.ts           # PUT /booking/:id (auth + 403 + 405)
-│   │   │   ├── partial-update-booking.spec.ts   # PATCH /booking/:id (auth + 403)
-│   │   │   ├── delete-booking.spec.ts           # DELETE /booking/:id (auth + 403 + idempotency)
-│   │   │   └── data-flow.spec.ts                # E2E lifecycle: create → get → put → patch → delete
-│   │   └── bugs/
-│   │       └── rest-compliance.spec.ts          # 6 intentionally-failing REST-correctness tests
+│   │   ├── auth.spec.ts, ping.spec.ts
+│   │   ├── booking/               # create/get/update/patch/delete + data-flow
+│   │   └── bugs/                  # rest-compliance.spec — intentionally failing
 │   └── ai-generated/              # Task 2 Part B — AI vs reviewed comparison
 ├── .gitignore
-└── README.md                      # This file
+└── README.md
 ```
 
 ## Setup
 
-Node version is pinned in `.nvmrc` (`18.19.0`). With `nvm` installed, `nvm use` from the repo root picks it up. Each sub-project is independent — install only what you need.
+Node version pinned in `.nvmrc` (`18.19.0`) — `nvm use` from repo root. Each sub-project is independent.
 
 ```bash
-# Task 1 — UI suite
-cd ui-automation
-npm install
-npx playwright install chromium                # default browser
-npx playwright install firefox webkit          # optional, cross-browser
+# Task 1 — UI
+cd ui-automation && npm install
+npx playwright install chromium firefox webkit  # all three; covers desktop + mobile emulation
 
-# Task 2 — API suite
-cd ../api-automation
-npm install
+# Task 2 — API
+cd ../api-automation && npm install
 ```
 
-Configuration. Defaults are baked in. Override via shell env vars or a local `.env` (gitignored — see `.env.example` in each sub-project):
+Defaults are baked in. Override via shell env or local `.env` (gitignored — see `.env.example`):
 
 ```
 # ui-automation
@@ -94,86 +80,80 @@ ADMIN_USERNAME=admin
 ADMIN_PASSWORD=password123
 ```
 
-In production these would never be source-checked — they'd come from CI secret stores (GitHub Actions secrets, etc.) or a vault. For a public-creds test brief, source defaults are fine.
-
-About the demoqa account: the spec said to leave User Registration out of scope, so I'm assuming the reviewer will use the public `tester` account from the brief. Drop overrides into `.env` if you want a different one.
+In production these would come from CI secrets / vault — for a public-creds test brief, source defaults are fine.
 
 ## Running tests
 
 ```bash
-# Everything (per project)
+# Default (Chromium / API)
 cd ui-automation && npm test
 cd ../api-automation && npm test
 
-# Subsets via tags
-npm run test:smoke           # @smoke critical paths only
+# Tagged subsets
+npm run test:smoke           # @smoke critical paths
 npm run test:bugs            # api-automation: @bugs intentionally-failing tier
-npm run test:all             # api-automation: main + bugs together
+npm run test:all             # api-automation: main + bugs
 
-# Visible browser for debugging (ui-automation)
-npm run test:headed          # tests with browser visible
-npm run test:ui              # Playwright UI mode (interactive debugging)
+# UI debugging
+npm run test:headed          # visible browser
+npm run test:ui              # Playwright UI mode
 
-# Cross-browser (ui-automation)
+# UI cross-device (opt-in)
 npm run test:cross-browser   # Chromium + Firefox + WebKit
+npm run test:mobile          # Pixel 5 + iPhone 13 (emulated)
 
-# Open the last HTML report
-npm run test:report
-
-# Type-check only (no test execution)
+# Reports + lint
+npm run test:report          # open last HTML report
 npm run lint                 # tsc --noEmit
 ```
 
-**Tags I use:**
-
-- `@smoke` — fast critical-path subset, runs on every CI commit
-- `@bugs` — REST-compliance bug-surfacing tests (api-automation only); excluded from default `npm test` so the main suite stays green
-
-Run a subset: `npx playwright test --grep @smoke`.
+**Tags:**
+- `@smoke` — fast critical-path subset, runs in CI
+- `@bugs` — REST-compliance bug-surfacing (api-automation only); excluded from default `npm test`
 
 ## CI/CD
 
-Two GitHub Actions workflows live in `.github/workflows/` at the repo root, each `path:`-filtered so a UI-only change doesn't trigger the API job and vice-versa:
+Two GitHub Actions workflows in `.github/workflows/` at repo root, each `path:`-filtered so a UI-only change doesn't trigger the API job:
 
-- `.github/workflows/ui-tests.yml` — Chromium on push/PR touching `ui-automation/**`. Type-checks (`npm run lint`), then runs `npm test`. HTML report uploaded as `ui-playwright-report`.
-- `.github/workflows/api-tests.yml` — runs on `api-automation/**` changes. Two jobs: `test` (main suite, blocking; excludes `@bugs`) and `bug-tracking` (`@bugs` tier, `continue-on-error: true` so bug-status drift is visible without blocking PRs).
+- `ui-tests.yml` — Chromium on `ui-automation/**` changes. Type-checks, then `npm test`. HTML report uploaded.
+- `api-tests.yml` — runs on `api-automation/**` changes. Two jobs: `test` (main suite, blocking) and `bug-tracking` (`@bugs` tier, `continue-on-error: true`).
 
-Both jobs read the Node version from `.nvmrc` so local dev and CI never drift.
-
-`CI=true` enables retries (2 per test) so transient flake (Heroku cold-starts, demoqa cold-loads) doesn't fail the build. Local runs do not retry — fast, honest signal.
-
-Cross-browser runs are excluded from default CI to keep PR feedback fast; available via `npm run test:cross-browser` on demand. Should drop into GitLab CI / Jenkins / CircleCI with minimal changes — the npm scripts are the same everywhere.
+Both read Node from `.nvmrc`. `CI=true` enables 2 retries to absorb transient flake (Heroku cold-starts, demoqa cold-loads); local runs do not retry. Cross-browser and mobile excluded from default CI to keep PR feedback fast — opt-in via npm scripts.
 
 ## Test design notes
 
-A few choices worth flagging:
+**Lightweight, standalone POMs.** Each POM is a self-contained class — no shared base class, no inheritance hop to follow when reading. Pages expose actions and locators; assertions live in the tests. `fixtures/pomFixtures.ts` extends Playwright's `test` so each spec destructures only the page objects it needs — POMs construct lazily, bound to that test's own `page`.
 
-**Page Object Model, but lightweight.** I avoid putting business logic in page objects. Pages expose actions and locators; assertions live in the tests. This is the split that's saved me the most pain over the years.
+**Symmetric layout across UI and API.** Both sub-projects share the same shape: `config/env.ts` (env access), `test-data/` (env-derived fixtures), `clients/` (pure HTTP), `helpers/` (runtime bridges — ajv validation in API, cookie-to-API cleanup in UI). A reviewer flipping between suites recognises the pattern instantly.
 
-**Factory functions for test data, not fixtures-of-everything.** `newBooking({ firstname: "X", totalprice: 0 })` is more flexible than a fixture per scenario. The override pattern is just as readable in fewer lines and scales the same way as the model grows.
+**Factory functions over fixtures-of-everything.** `newBooking({ totalprice: 0 })` is more flexible than a fixture per scenario. Same idea for credentials — config exposes raw env values, `test-data/` builds the fixtures.
 
-**Schema validation everywhere on the API side.** Status code and a couple of field asserts isn't enough — schemas catch silent contract changes. Schemas live in `api-automation/schemas/` and are loaded by the assertion helpers.
+**Schema validation everywhere on the API side.** Status code + a couple of field asserts isn't enough — schemas catch silent contract changes. Loaded by `helpers/validateSchema.ts`.
 
-**Bug-surfacing tests as a separate tier.** Restful Booker has documented REST deviations (200 instead of 401 on bad creds, 500 instead of 400 on missing fields, 405 instead of 404 on missing IDs). The main suite asserts what the API *does today* (so smoke runs stay green); `tests/bugs/rest-compliance.spec.ts` asserts what it *should* do per REST/HTTP convention — those failures are the bug tickets.
+**Bug-surfacing tests as a separate tier.** Restful Booker has REST deviations (200 instead of 401, 500 instead of 400, 405 instead of 404). The main suite asserts what the API *does* (so smoke stays green); `tests/bugs/rest-compliance.spec.ts` asserts what it *should* do — those failures are the bug tickets.
 
-**Independent tests.** Each test creates and tears down its own data. No ordering dependencies, safe to parallelise. The end-to-end flow test is the one exception and it's deliberately one big test, not a sequence of dependent ones.
+**Independent tests.** Each test creates and tears down its own data. No ordering dependencies, safe to parallelise. The end-to-end flow test is the deliberate exception.
 
-**Session-per-test for UI logged-in flows.** demoqa has three quirks that storage state can't survive: single-session enforcement, mismatched-token sensitivity between cookies and Bearer headers, and a cookie/localStorage gap. Per-test UI login gives each test one coherent session for both UI and API cleanup. The full reasoning lives in the file header of `ui-automation/tests/logged-in/e2e-flow.spec.ts`.
+**Session-per-test for UI logged-in flows.** demoqa has three quirks that storage state can't survive — single-session enforcement, mismatched-token sensitivity, cookie/localStorage gap. Full reasoning in the file header of `tests/logged-in/e2e-flow.spec.ts`.
 
-**No retries on assertion failures.** Retries hide real bugs. The only place retries are acceptable is at the network layer for genuine transient issues — that's the `CI=true ? 2 : 0` setting in `playwright.config.ts`, not on assertion logic.
+**No retries on assertion failures.** Retries hide real bugs. The only retry is the `CI=true ? 2 : 0` setting for genuine transient network flake.
 
 ## AI assistance disclosure
 
-Per the spec, here's what I used AI for and how I validated it:
+AI was used as a drafting tool. Every output was treated like a junior contributor's pull request — reviewed line-by-line, validated empirically, and revised for correctness, framework alignment, and maintainability before being merged.
 
-| Where | Tool | What I did |
-|---|---|---|
-| `api-automation/ai-generated/` | Claude (Sonnet) | Task 2 Part B — deliberate exercise. Generated tests for two endpoints (POST /auth, POST /booking), then reviewed and rewrote. Both versions in repo, with annotated diff in `api-automation/ai-generated/README.md`. |
-| API helpers (`api-automation/clients/`, `api-automation/helpers/`) | Claude | Drafted the auth/booking client helpers (`getToken`, `createBookingForTest`, `cleanupBookings`), the ajv schema validator (`helpers/validateSchema.ts`), and the HTML-report attachment helper (`helpers/reportAttachments.ts`). Each was reviewed line-by-line; tuned ajv error formatting until failures showed every violation, not just the first. |
-| `test-data/bookingData.ts`, `test-data/authData.ts`, `test-data/bookingFilterData.ts` | Claude | Drafted the factory + parameterised datasets. Verified each value against the Restful Booker docs and a real response — caught one issue where AI marked `additionalneeds` as required (it isn't). |
-| Repetitive test-spec boilerplate | Claude | Faster to generate the request/assert/cleanup shape than type by hand. Each spec was reviewed line-by-line afterwards. |
-| README polish | Claude | Reordered sections, tightened phrasing. Content and structure are mine. |
+| Where | Tool | What AI drafted | QA review I performed |
+|---|---|---|---|
+| `api-automation/ai-generated/` | Claude (Sonnet) | Tests for two endpoints (POST /auth, POST /booking) | Structured review with 15 annotated changes; rewrote both. Both versions kept in repo with diff in `ai-generated/README.md`. |
+| API helpers (`clients/`, `helpers/`) | Claude | Auth/booking client helpers, ajv schema validator, report attachment helper | Reviewed each helper line-by-line; iteratively tuned ajv error formatting until failures surfaced every schema violation, not just the first. |
+| `test-data/` (booking, auth, filter datasets) | Claude | Factory + parameterised datasets | Validated each value empirically against the live API — caught one defect where AI marked `additionalneeds` as required (it isn't). Cross-checked filter datasets for collisions. |
+| Repetitive spec boilerplate | Claude | Request/assert/cleanup scaffolding | Reviewed every spec line-by-line; tightened over-loose schema assertions, added missing edge cases (null/empty/typed-wrong), removed duplicate happy paths. |
+| README polish | Claude | Section reordering, phrasing tweaks | Content, structure, and design decisions are mine. |
 
-I did *not* use AI for the core framework decisions: the bug-surfacing pattern, the session-per-test UI auth approach, locator strategy, dialog/modal handling, schema design, or empirical API exploration. Those are deliberate design choices I wanted to own. The AI experiment in `api-automation/ai-generated/` is the one place where AI-generated code was the *starting point* — and I've documented exactly what I changed and why.
+**What I did *not* delegate to AI.** Core framework decisions — the bug-surfacing tier pattern, session-per-test UI auth approach, locator strategy, dialog/modal handling, JSON Schema design, empirical API exploration. Those are judgment calls I wanted to own.
 
-My validation rule of thumb: if I can't explain why a line is there, it doesn't go in.
+**Validation rules I held AI output to:**
+- Empirical verification beats AI-asserted behaviour. A single Postman/codegen probe reveals what the API/UI actually does versus what AI assumed (200 with `Bad credentials` instead of 401, `Logout` vs `Log out`, etc.).
+- If I can't explain why a line is there, it doesn't go in.
+- Strict shape over loose assertions. `toEqual({ token: expect.any(String) })` over `toHaveProperty('token')`. Schema validation over field-by-field checks.
+- Test independence. AI-drafted specs often shared state implicitly; rewrote each spec to set up and tear down its own data.

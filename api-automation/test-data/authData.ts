@@ -8,12 +8,12 @@ export const VALID_CREDS = {
 } as const;
 
 // Loose values so negative cases can pass null/empty/etc.
-export type AuthPayload = Partial<{
+type AuthPayload = Partial<{
   username: unknown;
   password: unknown;
 }>;
 
-export interface NegativeAuthCase {
+interface NegativeAuthCase {
   description: string;
   data: AuthPayload;
 }

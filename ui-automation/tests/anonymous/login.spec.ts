@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures/pomFixtures';
-import { validCredentials, invalidCredentials } from '../../fixtures/credentials';
+import { validCredentials, invalidCredentials } from '../../test-data/testCredentials';
 
 test.describe('Login', () => {
   test.beforeEach(async ({ loginPage }) => {
@@ -18,15 +18,19 @@ test.describe('Login', () => {
     },
   );
 
-  test('shows an error message when password is invalid', async ({ loginPage, page }) => {
-    await loginPage.login(invalidCredentials.username, invalidCredentials.password);
+  test(
+    'shows an error message when password is invalid',
+    { tag: '@smoke' },
+    async ({ loginPage, page }) => {
+      await loginPage.login(invalidCredentials.username, invalidCredentials.password);
 
-    // Inline error, no navigation.
-    await expect(page.locator('#name')).toBeVisible();
-    const errorText = await loginPage.getErrorMessageText();
-    expect(errorText.toLowerCase()).toContain('invalid');
-    expect(page.url()).toContain('/login');
-  });
+      // Inline error, no navigation.
+      await expect(page.locator('#name')).toBeVisible();
+      const errorText = await loginPage.getErrorMessageText();
+      expect(errorText.toLowerCase()).toContain('invalid');
+      expect(page.url()).toContain('/login');
+    },
+  );
 
   test('does not navigate away when fields are submitted empty', async ({ loginPage, page }) => {
     await loginPage.login('', '');

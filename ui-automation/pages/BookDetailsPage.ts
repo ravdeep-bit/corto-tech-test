@@ -1,18 +1,12 @@
-import { expect } from '@playwright/test';
-import { BasePage } from './BasePage';
+import { expect, Locator, Page } from '@playwright/test';
 import { BookDetails } from '../types/BookDetails';
 
 // /books?book=<isbn>. Field labels matched by regex (`/^Field\s*:/`) — demoqa
 // inconsistently formats `Field:` vs `Field :`. Both action buttons share
 // id="addNewRecordButton" (HTML spec violation) — anchor on role + accessible
 // name to differentiate.
-export class BookDetailsPage extends BasePage {
-  private readonly backToBookStoreButton = this.page.getByRole('button', {
-    name: /back to book store/i,
-  });
-  private readonly addToCollectionButton = this.page.getByRole('button', {
-    name: /add to your collection/i,
-  });
+export class BookDetailsPage {
+  private readonly addToCollectionButton: Locator;
 
   private static readonly FIELD_PATTERNS = {
     isbn: /^ISBN\s*:/,
@@ -23,6 +17,10 @@ export class BookDetailsPage extends BasePage {
     description: /^Description\s*:/,
     website: /^Website\s*:/,
   } as const;
+
+  constructor(protected page: Page) {
+    this.addToCollectionButton = page.getByRole('button', { name: /add to your collection/i });
+  }
 
   // ISBN label is always present — readiness signal.
   async waitForDetailsLoaded(): Promise<void> {
@@ -67,14 +65,6 @@ export class BookDetailsPage extends BasePage {
   }
 
   // Auth-gated — only rendered for logged-in users.
-  async isAddToCollectionVisible(): Promise<boolean> {
-    return this.addToCollectionButton.isVisible();
-  }
-
-  async expectAddToCollectionButtonVisible(): Promise<void> {
-    await expect(this.addToCollectionButton).toBeVisible();
-  }
-
   async expectAddToCollectionButtonHidden(): Promise<void> {
     await expect(this.addToCollectionButton).not.toBeVisible();
   }
@@ -92,11 +82,5 @@ export class BookDetailsPage extends BasePage {
     const message = dialog.message();
     await dialog.accept();
     return message;
-  }
-
-  async backToBookStore(): Promise<void> {
-    await expect(this.backToBookStoreButton).toBeVisible();
-    await this.backToBookStoreButton.click();
-    await this.page.waitForURL(/\/books/);
   }
 }
