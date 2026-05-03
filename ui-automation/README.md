@@ -19,7 +19,7 @@ The `@smoke` set is **6 tests** across all five spec files: the two login regres
 
 ## Cross-browser & mobile coverage
 
-The same 14 tests run unchanged across five Playwright projects: Chromium / Firefox / WebKit (desktop) and Pixel 5 / iPhone 13 (emulated mobile). Default `npm test` runs Chromium only. Opt-in via `npm run test:cross-browser` (desktop trio) and `npm run test:mobile` (mobile pair). No per-device test variants — locators are semantic-first (`getByRole`, accessible names) and so survive the responsive layout changes between desktop and mobile breakpoints. If a future spec needs viewport-specific behaviour (e.g. a hamburger menu only present on mobile), it would live in a tagged subset rather than forking the spec files.
+The same 14 tests run unchanged across five Playwright projects: Chromium / Firefox / WebKit (desktop) and Pixel 5 / iPhone 13 (emulated mobile). Default `npm test` runs Chromium only. Opt-in via `npm run test:cross-browser` (desktop trio) and `npm run test:mobile` (mobile pair). No per-device test variants — locators are semantic-first (`getByRole`, accessible names) and so survive the responsive layout changes between desktop and mobile breakpoints. 
 
 The logged-in spec runs in `serial` mode within its describe block because the demoqa `tester` user's collection is shared server-side state.
 
@@ -27,11 +27,19 @@ The logged-in spec runs in `serial` mode within its describe block because the d
 
 Each logged-in test does its own UI login in `beforeEach` — a fresh `tester` session bound to its own browser context. The collection is wiped via API in BOTH `beforeEach` (defensive — clean start regardless of prior state) and `afterEach` (clean exit for the next run). Cleanup is centralised in `helpers/cleanCollection.ts` — it extracts `token`/`userID` from the session's own cookies and runs through a fresh `APIRequestContext` (Bearer-only, no cookie pollution). One valid token per test, end-to-end.
 
-Folder names reflect browser starting state, not feature: login-form tests live in `anonymous/` because they need an unauthenticated context to render the form; the end-to-end journey lives in `logged-in/` because it assumes the user is already authenticated.
+The fresh `APIRequestContext` matters: the test's built-in `request` fixture would share storage with the browser and send the session cookie alongside `Authorization: Bearer` — a combination demoqa hangs on. Isolating the cleanup call to a single auth mechanism avoids the hang. The cleanup helper also no-ops when cookies aren't set, so `afterEach` doesn't crash on top of an already-failing test.
+
+`storageState` is deliberately not used. Two demoqa behaviours rule it out:
+
+- *Single-session enforcement:* a new login on the shared `tester` account invalidates older tokens; `workers: 1` falls out of the same constraint.
+- *Cookie/localStorage gap:* demoqa writes auth to cookies but reads `userID`/`token` from localStorage; `storageState` can't capture values demoqa never wrote there.
+
+Header of `tests/logged-in/e2e-flow.spec.ts` documents the same reasoning at the spec level.
+
 
 ## Locator strategy
 
-Semantic-first: `getByRole`, `getByPlaceholder`, accessible-name regexes, with stable IDs (`#userName`, `#password`, `#login`) where there's no accessible name. Class-based selectors only where the framework offers no semantic alternative. No `nth-child`, no positional CSS, no generated IDs.
+Semantic-first: `getByRole`, `getByPlaceholder`, accessible-name regexes, with stable IDs (`#userName`, `#password`, `#login`) where there's no accessible name. Class-based selectors only where the framework offers no semantic alternative. No `nth-child`, no positional CSS used.
 
 Two demoqa-specific notes baked into the POMs: action buttons on the detail page share `id="addNewRecordButton"` (an HTML spec violation), so role + accessible-name regex is the only reliable differentiator; field labels use regex like `/^ISBN\s*:/` to tolerate the site's inconsistent `Field:` / `Field :` formatting.
 
@@ -57,15 +65,14 @@ All timeouts centralised in `playwright.config.ts` — no magic numbers in test 
 
 POMs never pass explicit `{ timeout: ... }` options — Playwright's auto-retry semantics use the config defaults.
 
-No hard sleeps (`waitForTimeout`) outside one short DOM-settle wait in `BookStorePage.search()` — client-side filtering needs a beat to render, and Playwright's auto-wait isn't appropriate for "wait for nothing specific."
+No hard sleeps (`waitForTimeout`) outside one short DOM-settle wait in `BookStorePage.search()` — client-side filtering needs a beat to render, and Playwright's auto-wait isn't appropriate.
 
 ## Known limitations & demoqa platform quirks
 
 Empirical findings from running against the live site:
 
-- **DemoQA is a free public test site.** Cold-load times can hit 15–20 seconds; the 60s test timeout absorbs this without masking real failures.
-- **Async native alert on add-to-collection.** "Add To Your Collection" surfaces a native browser alert 5–6s after the click (server-driven). POMs register the dialog listener BEFORE the click — see `BookDetailsPage.addToCollection()`.
-- **In-page modal on delete.** The `/profile` delete confirmation is a react-bootstrap modal (`role="dialog"`), *not* a native browser dialog. `ProfilePage.deleteBook()` waits for the modal, clicks its OK button, and asserts deletion via the row disappearing rather than the modal closing — modal close timing varies with demoqa's DELETE response latency.
+- **Async native alert on add-to-collection.** "Add To Your Collection" surfaces a native browser alert.
+- **In-page modal on delete.** The `/profile` delete confirmation is a react-bootstrap modal (`role="dialog"`), *not* a native browser dialog. 
 - **Delete All Books UI broken on demoqa.** Observed: the modal OK button doesn't fire the delete on the live site. Doesn't affect our suite because cleanup runs via the `DELETE /BookStore/v1/Books` API (`helpers/cleanCollection.ts`).
 - **HTML id collision.** Both action buttons on the book detail page share `id="addNewRecordButton"` (HTML spec violation). POMs anchor on `getByRole('button', { name: ... })`.
 - **Inconsistent button labels across pages.** The same logical Logout control renders as `Logout` on `/profile` but `Log out` (with space) on `/books`. `HeaderNav.logoutButton` uses a `/^log\s*out$/i` regex to tolerate both — exact-text match would silently fail on whichever page wasn't authored.
@@ -80,6 +87,6 @@ Out of scope for this submission, but the natural next layers for a real product
 
 - **Accessibility testing** — `@axe-core/playwright` integration to assert WCAG conformance on every page render. Catches a class of UI defect (missing labels, contrast failures, ARIA misuse, keyboard-trap issues) the existing functional tests don't surface.
 - **Visual regression** — Playwright's built-in `toHaveScreenshot()` for pixel-diff assertions on key pages, with platform-aware baselines and update-on-intentional-change workflows.
-- **Multi-environment config** — environment-keyed `.env.dev` / `.env.staging` / `.env.prod` (or a `NODE_ENV`-driven loader) so the same suite runs against any tier without source changes; production credentials never source-checked.
-- **Security testing** — XSS / SQL-injection probes on form inputs, session-fixation checks, CSRF token verification, rate-limit assertions, header security audit (CSP, X-Frame-Options). Deeper than the auth-boundary check in `book-details.spec.ts`.
+- **Multi-environment config** 
+- **Security testing** — XSS / SQL-injection probes on form inputs, token verifications, rate limiting tests.
 

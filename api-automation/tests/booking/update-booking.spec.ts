@@ -36,24 +36,24 @@ test.describe('PUT /booking/:id', () => {
     });
     await attachReqRes(testInfo, { method: 'PUT', body: updatedPayload }, putRes, 'PUT');
 
-    expect(putRes.status()).toBe(200);
+    expect(putRes.status(), 'PUT /booking/:id with valid auth and full payload returns 200').toBe(200);
     const putBody = await putRes.json();
     assertMatchesSchema(putBody, 'booking.json');
-    expect(putBody.firstname).toBe('Jane');
-    expect(putBody.lastname).toBe('Smith');
-    expect(putBody.totalprice).toBe(250);
-    expect(putBody.depositpaid).toBe(false);
-    expect(putBody.additionalneeds).toBe('Late checkout');
+    expect(putBody.firstname, 'PUT response reflects updated firstname').toBe('Jane');
+    expect(putBody.lastname, 'PUT response reflects updated lastname').toBe('Smith');
+    expect(putBody.totalprice, 'PUT response reflects updated totalprice').toBe(250);
+    expect(putBody.depositpaid, 'PUT response reflects updated depositpaid').toBe(false);
+    expect(putBody.additionalneeds, 'PUT response reflects updated additionalneeds').toBe('Late checkout');
 
     const getRes = await request.get(`/booking/${bookingid}`);
     await attachReqRes(testInfo, { method: 'GET' }, getRes, 'GET verify');
 
-    expect(getRes.status()).toBe(200);
+    expect(getRes.status(), 'GET after PUT returns 200').toBe(200);
     const getBody = await getRes.json();
-    expect(getBody.firstname).toBe('Jane');
-    expect(getBody.lastname).toBe('Smith');
-    expect(getBody.totalprice).toBe(250);
-    expect(getBody.depositpaid).toBe(false);
+    expect(getBody.firstname, 'GET-after-PUT confirms firstname was actually persisted').toBe('Jane');
+    expect(getBody.lastname, 'GET-after-PUT confirms lastname was actually persisted').toBe('Smith');
+    expect(getBody.totalprice, 'GET-after-PUT confirms totalprice was actually persisted').toBe(250);
+    expect(getBody.depositpaid, 'GET-after-PUT confirms depositpaid was actually persisted').toBe(false);
   });
 
   test('rejects update without auth token', async ({ request }, testInfo) => {
@@ -64,7 +64,7 @@ test.describe('PUT /booking/:id', () => {
     const res = await request.put(`/booking/${bookingid}`, { data: noAuthPayload });
     await attachReqRes(testInfo, { method: 'PUT', body: noAuthPayload }, res);
 
-    expect(res.status()).toBe(403);
+    expect(res.status(), 'PUT /booking/:id without auth token returns 403').toBe(403);
   });
 
   test('returns 405 when updating a deleted (non-existent) booking', async ({ request }, testInfo) => {
@@ -74,7 +74,10 @@ test.describe('PUT /booking/:id', () => {
     const deleteRes = await request.delete(`/booking/${bookingid}`, {
       headers: { Cookie: `token=${token}` },
     });
-    expect(deleteRes.status()).toBe(201);
+    expect(
+      deleteRes.status(),
+      'setup: DELETE returns 201 (Restful Booker quirk; REST-correct 204 tracked as BUG-2)',
+    ).toBe(201);
 
     const payload = newBooking();
     const res = await request.put(`/booking/${bookingid}`, {
@@ -83,6 +86,9 @@ test.describe('PUT /booking/:id', () => {
     });
     await attachReqRes(testInfo, { method: 'PUT', body: payload }, res);
 
-    expect(res.status()).toBe(405);
+    expect(
+      res.status(),
+      'PUT /booking/:id on a deleted id returns 405 (Restful Booker quirk; REST-correct 404 tracked as BUG-6)',
+    ).toBe(405);
   });
 });

@@ -30,7 +30,7 @@ test.describe('REST compliance — known bugs in restful-booker', () => {
       const body = await res.json().catch(() => null);
       if (body?.bookingid) createdIds.push(body.bookingid);
 
-      expect(res.status()).toBe(201);
+      expect(res.status(), 'BUG-1: POST /booking on success should return 201 Created per REST conventions').toBe(201);
     },
   );
 
@@ -45,7 +45,7 @@ test.describe('REST compliance — known bugs in restful-booker', () => {
       });
       await attachReqRes(testInfo, { method: 'DELETE' }, res);
 
-      expect(res.status()).toBe(204);
+      expect(res.status(), 'BUG-2: DELETE on success should return 204 No Content per REST conventions').toBe(204);
     },
   );
 
@@ -53,7 +53,7 @@ test.describe('REST compliance — known bugs in restful-booker', () => {
     const res = await request.get('/ping');
     await attachReqRes(testInfo, { method: 'GET' }, res);
 
-    expect(res.status()).toBe(200);
+    expect(res.status(), 'BUG-3: GET /ping (a read, no resource created) should return 200 OK').toBe(200);
   });
 
   test(
@@ -64,7 +64,10 @@ test.describe('REST compliance — known bugs in restful-booker', () => {
       const res = await request.post('/auth', { data: payload });
       await attachReqRes(testInfo, { method: 'POST', body: payload }, res);
 
-      expect(res.status()).toBe(401);
+      expect(
+        res.status(),
+        'BUG-4: invalid credentials should return 401 Unauthorized — currently 200 with { reason: "Bad credentials" }',
+      ).toBe(401);
     },
   );
 
@@ -78,7 +81,10 @@ test.describe('REST compliance — known bugs in restful-booker', () => {
       const res = await request.post('/booking', { data: payload });
       await attachReqRes(testInfo, { method: 'POST', body: payload }, res);
 
-      expect(res.status()).toBe(400);
+      expect(
+        res.status(),
+        'BUG-5: client-side bad input should return 400 Bad Request, not 500 Internal Server Error',
+      ).toBe(400);
     },
   );
 
@@ -92,14 +98,20 @@ test.describe('REST compliance — known bugs in restful-booker', () => {
       const firstDelete = await request.delete(`/booking/${bookingid}`, {
         headers: { Cookie: `token=${token}` },
       });
-      expect(firstDelete.status()).toBe(201);
+      expect(
+        firstDelete.status(),
+        'setup: first DELETE returns 201 (Restful Booker quirk; REST-correct 204 tracked as BUG-2)',
+      ).toBe(201);
 
       const res = await request.delete(`/booking/${bookingid}`, {
         headers: { Cookie: `token=${token}` },
       });
       await attachReqRes(testInfo, { method: 'DELETE' }, res);
 
-      expect(res.status()).toBe(404);
+      expect(
+        res.status(),
+        'BUG-6: mutation on a deleted/non-existent id should return 404 Not Found, not 405 Method Not Allowed',
+      ).toBe(404);
     },
   );
 });

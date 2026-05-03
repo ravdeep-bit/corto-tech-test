@@ -31,21 +31,21 @@ test.describe('PATCH /booking/:id', () => {
       });
       await attachReqRes(testInfo, { method: 'PATCH', body: patchPayload }, patchRes, 'PATCH');
 
-      expect(patchRes.status()).toBe(200);
+      expect(patchRes.status(), 'PATCH /booking/:id with valid auth and partial payload returns 200').toBe(200);
       const patchBody = await patchRes.json();
       assertMatchesSchema(patchBody, 'booking.json');
-      expect(patchBody.firstname).toBe('Patched');
-      expect(patchBody.lastname).toBe(original.lastname);
-      expect(patchBody.totalprice).toBe(original.totalprice);
-      expect(patchBody.depositpaid).toBe(original.depositpaid);
+      expect(patchBody.firstname, 'PATCH response reflects the patched firstname').toBe('Patched');
+      expect(patchBody.lastname, 'PATCH leaves untouched lastname unchanged').toBe(original.lastname);
+      expect(patchBody.totalprice, 'PATCH leaves untouched totalprice unchanged').toBe(original.totalprice);
+      expect(patchBody.depositpaid, 'PATCH leaves untouched depositpaid unchanged').toBe(original.depositpaid);
 
       const getRes = await request.get(`/booking/${bookingid}`);
       await attachReqRes(testInfo, { method: 'GET' }, getRes, 'GET verify');
 
-      expect(getRes.status()).toBe(200);
+      expect(getRes.status(), 'GET after PATCH returns 200').toBe(200);
       const getBody = await getRes.json();
-      expect(getBody.firstname).toBe('Patched');
-      expect(getBody.lastname).toBe(original.lastname);
+      expect(getBody.firstname, 'GET-after-PATCH confirms patched firstname was actually persisted').toBe('Patched');
+      expect(getBody.lastname, 'GET-after-PATCH confirms unpatched lastname is preserved').toBe(original.lastname);
     },
   );
 
@@ -57,6 +57,6 @@ test.describe('PATCH /booking/:id', () => {
     const res = await request.patch(`/booking/${bookingid}`, { data: noAuthPayload });
     await attachReqRes(testInfo, { method: 'PATCH', body: noAuthPayload }, res);
 
-    expect(res.status()).toBe(403);
+    expect(res.status(), 'PATCH /booking/:id without auth token returns 403').toBe(403);
   });
 });

@@ -14,8 +14,9 @@ export default defineConfig({
   // 2 workers on CI — every test creates its own booking (`fullyParallel: true`
   // is safe); 2 keeps CI fast without overloading restful-booker's free tier.
   workers: process.env.CI ? 2 : undefined,
-  // HTML report auto-opens on failure for fast triage; never auto-opens in CI.
-  reporter: [['html', { open: 'on-failure' }], ['list']],
+  // HTML report auto-opens locally on every run for fast triage; never in CI
+  // (no browser/display, would error or hang).
+  reporter: [['html', { open: process.env.CI ? 'never' : 'always' }], ['list']],
   use: {
     baseURL: BASE_URL,
     // Full network detail on failure — open via HTML report's "Trace" link.

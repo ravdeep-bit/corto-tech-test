@@ -24,20 +24,20 @@ test.describe('E2E: Booking Data Flow', () => {
     await test.step('create booking', async () => {
       const res = await request.post('/booking', { data: initialData });
       await attachReqRes(testInfo, { method: 'POST', body: initialData }, res, 'create');
-      expect(res.status()).toBe(200);
+      expect(res.status(), 'create step: POST /booking returns 200').toBe(200);
       const body = await res.json();
       bookingId = body.bookingid;
-      expect(bookingId).toBeTruthy();
-      expect(body.booking.firstname).toBe(initialData.firstname);
+      expect(bookingId, 'create step: bookingid is returned and truthy (used by every subsequent step)').toBeTruthy();
+      expect(body.booking.firstname, 'create step: response echoes the firstname we sent').toBe(initialData.firstname);
     });
 
     await test.step('get and verify created data', async () => {
       const res = await request.get(`/booking/${bookingId}`);
       await attachReqRes(testInfo, { method: 'GET' }, res, 'get');
-      expect(res.status()).toBe(200);
+      expect(res.status(), 'get step: GET /booking/:id returns 200').toBe(200);
       const body = await res.json();
-      expect(body.firstname).toBe(initialData.firstname);
-      expect(body.lastname).toBe(initialData.lastname);
+      expect(body.firstname, 'get step: stored firstname matches what create returned').toBe(initialData.firstname);
+      expect(body.lastname, 'get step: stored lastname matches what create returned').toBe(initialData.lastname);
     });
 
     await test.step('full update (PUT)', async () => {
@@ -46,10 +46,10 @@ test.describe('E2E: Booking Data Flow', () => {
         data: updatedData,
       });
       await attachReqRes(testInfo, { method: 'PUT', body: updatedData }, res, 'put');
-      expect(res.status()).toBe(200);
+      expect(res.status(), 'put step: PUT /booking/:id returns 200').toBe(200);
       const body = await res.json();
-      expect(body.firstname).toBe('Updated');
-      expect(body.lastname).toBe('AfterPut');
+      expect(body.firstname, 'put step: response reflects updated firstname').toBe('Updated');
+      expect(body.lastname, 'put step: response reflects updated lastname').toBe('AfterPut');
     });
 
     await test.step('partial update (PATCH)', async () => {
@@ -59,19 +59,21 @@ test.describe('E2E: Booking Data Flow', () => {
         data: patchPayload,
       });
       await attachReqRes(testInfo, { method: 'PATCH', body: patchPayload }, res, 'patch');
-      expect(res.status()).toBe(200);
+      expect(res.status(), 'patch step: PATCH /booking/:id returns 200').toBe(200);
       const body = await res.json();
-      expect(body.firstname).toBe('Updated');
-      expect(body.lastname).toBe('PatchedLast');
+      expect(body.firstname, 'patch step: PATCH leaves firstname (set by previous PUT) untouched').toBe('Updated');
+      expect(body.lastname, 'patch step: response reflects patched lastname').toBe('PatchedLast');
     });
 
     await test.step('verify state via GET', async () => {
       const res = await request.get(`/booking/${bookingId}`);
       await attachReqRes(testInfo, { method: 'GET' }, res, 'verify');
-      expect(res.status()).toBe(200);
+      expect(res.status(), 'verify step: GET /booking/:id returns 200').toBe(200);
       const body = await res.json();
-      expect(body.firstname).toBe('Updated');
-      expect(body.lastname).toBe('PatchedLast');
+      expect(body.firstname, 'verify step: PUT-then-PATCH state was actually persisted (firstname)').toBe('Updated');
+      expect(body.lastname, 'verify step: PUT-then-PATCH state was actually persisted (lastname)').toBe(
+        'PatchedLast',
+      );
     });
 
     await test.step('delete booking', async () => {
@@ -79,13 +81,16 @@ test.describe('E2E: Booking Data Flow', () => {
         headers: { Cookie: `token=${token}` },
       });
       await attachReqRes(testInfo, { method: 'DELETE' }, res, 'delete');
-      expect(res.status()).toBe(201);
+      expect(
+        res.status(),
+        'delete step: DELETE returns 201 (Restful Booker quirk; REST-correct 204 tracked as BUG-2)',
+      ).toBe(201);
     });
 
     await test.step('verify deletion (404 on subsequent GET)', async () => {
       const res = await request.get(`/booking/${bookingId}`);
       await attachReqRes(testInfo, { method: 'GET' }, res, 'verify deleted');
-      expect(res.status()).toBe(404);
+      expect(res.status(), 'verify-deleted step: GET on the deleted id returns 404 (resource is gone)').toBe(404);
     });
   });
 });

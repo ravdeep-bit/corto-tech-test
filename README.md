@@ -7,48 +7,64 @@ Submission for the CORTO QE technical test. Two suites in one repo:
 
 Single repo because the patterns and tooling overlap heavily and CI stays simple. Each task runs independently — see [Running tests](#running-tests).
 
+**Suite-specific deep dives** (this README covers cross-cutting decisions; suite-specific design lives one level down):
+
+- UI suite — [`ui-automation/README.md`](./ui-automation/README.md): POMs, fresh UI login per spec, demoqa quirks, locator strategy, dialog handling, cross-browser/mobile coverage.
+- API suite — [`api-automation/README.md`](./api-automation/README.md): endpoint coverage table, REST-deviation table, bug-surfacing tier breakdown.
+- Task 2 Part B — [`api-automation/ai-generated/`](./api-automation/ai-generated/): AI-generated tests, annotated with corrections in each file's header.
+
 ## Why these tools
 
-**Playwright for both UI and API.** Auto-waiting eliminates most flakiness, the trace viewer is the best debugging tool I've used, and one stack means shared config / retries / reporters / CI matrix. Cross-browser is free, the API `request` fixture is first-class.
+**Playwright (UI & API)**
+- Auto-waiting reduces flakiness
+- Built-in tracing for debugging
+- Unified stack across UI and API
+- First-class API testing via `request` fixture
 
-**TypeScript over JavaScript.** Strong types catch errors at edit-time — Playwright's API, factory shapes, `Locator` types in POMs, schema-derived response shapes. `tsc --noEmit` is a free pre-test sanity gate that surfaces typos and contract drift before any test runs. The cost is one config file; the payoff compounds every refactor.
+**TypeScript** — types catch errors at edit-time; `tsc --noEmit` is a free pre-test sanity gate.
 
-**ajv + JSON Schema for response contracts.** Schemas live as `.json` artefacts in `api-automation/schemas/` — language-agnostic, readable in ten seconds without TypeScript. `additionalProperties: false` and explicit `required: [...]` arrays catch silent contract drift. Considered Zod but chose JSON Schema because the artefacts are clearer documentation.
+**ajv + JSON Schema (API contracts)**
+- Schemas as readable, language-agnostic contracts
+- `required` + `additionalProperties: false` catch silent drift
+- Faster to validate than hand-written assertions
 
-**Minimal extras.** Test data is small and meaningful (`newBooking({ totalprice: 0 })`); env handling is `process.env.X || 'default'`. Only `ajv` and `ajv-formats` are added beyond Playwright + TypeScript.
+**Reporting** — Playwright's built-in HTML reporter; auto-opens locally after every run for fast triage (suppressed in CI via `open: process.env.CI ? 'never' : 'always'` in both `playwright.config.ts` files). Production: swap for Allure (history, trends, richer attachments, JIRA integration).
+
+**Minimal dependencies** — `ajv` + `ajv-formats` (API schema validation) and `dotenv` (loads `.env` into `process.env` for both suites) beyond Playwright + TypeScript.
 
 ## Project structure
 
 ```
 corto-tech-test/
-├── .github/workflows/             # CI — path-filtered per sub-project
+├── .github/workflows/              # CI pipelines (path-filtered per sub-project)
 │   ├── ui-tests.yml
-│   └── api-tests.yml              # main suite + non-blocking @bugs job
-├── .nvmrc                         # Node version pin (CI + nvm)
-├── ui-automation/                 # Task 1 — Playwright UI
+│   └── api-tests.yml               # main suite + non-blocking @bugs job
+├── .nvmrc                          # Node version (CI + local via nvm)
+├── ui-automation/                  # Task 1 — Playwright UI suite
 │   ├── playwright.config.ts
-│   ├── pages/                     # Page Object Model
-│   ├── fixtures/pomFixtures.ts    # POM dependency injection
-│   ├── clients/bookstore.ts       # Demoqa /BookStore/v1/* HTTP wrappers
-│   ├── helpers/cleanCollection.ts # Page → cookies → API cleanup bridge
-│   ├── test-data/                 # Search scenarios + credentials (env-derived)
-│   ├── config/env.ts              # Centralised env access
-│   ├── types/                     # Shared TS types
+│   ├── pages/                      # Page Object Models (UI interactions)
+│   ├── fixtures/pomFixtures.ts     # Injects POMs into tests
+│   ├── clients/bookstore.ts        # API client for DemoQA /BookStore endpoints
+│   ├── helpers/cleanCollection.ts  # UI → cookie → API cleanup bridge
+│   ├── test-data/                  # Test data (search inputs, credentials)
+│   ├── config/env.ts               # Environment configuration
+│   ├── types/                      # Shared TypeScript types
 │   └── tests/
-│       ├── anonymous/             # login.spec, search.spec, book-details.spec
-│       └── logged-in/             # e2e-flow.spec, logout.spec
-├── api-automation/                # Task 2 — Playwright API + ajv
+│       ├── anonymous/              # Login, search, book details (no auth)
+│       └── logged-in/              # E2E flow, logout (authenticated flows)
+├── api-automation/                 # Task 2 — API suite (Playwright + ajv)
 │   ├── playwright.config.ts
-│   ├── clients/                   # auth + booking helpers (re-exports Booking type)
-│   ├── schemas/                   # JSON Schema response contracts
-│   ├── helpers/                   # ajv validator + report attachments
-│   ├── test-data/                 # Booking factory, auth + filter datasets
-│   ├── config/env.ts
+│   ├── clients/                    # API clients (auth, booking)
+│   ├── schemas/                    # JSON Schema contracts (source of truth)
+│   ├── helpers/                    # Schema validation + report utilities
+│   ├── test-data/                  # Data factories and datasets
+│   ├── config/env.ts               # Environment configuration
 │   ├── tests/
-│   │   ├── auth.spec.ts, ping.spec.ts
-│   │   ├── booking/               # create/get/update/patch/delete + data-flow
-│   │   └── bugs/                  # rest-compliance.spec — intentionally failing
-│   └── ai-generated/              # Task 2 Part B — AI vs reviewed comparison
+│   │   ├── auth.spec.ts
+│   │   ├── ping.spec.ts
+│   │   ├── booking/                # CRUD + data flow tests
+│   │   └── bugs/                   # Known REST deviations (intentionally failing)
+│   └── ai-generated/               # AI-generated vs reviewed tests (Part B)
 ├── .gitignore
 └── README.md
 ```
@@ -57,59 +73,91 @@ corto-tech-test/
 
 Node version pinned in `.nvmrc` (`18.19.0`) — `nvm use` from repo root. Each sub-project is independent.
 
-```bash
-# Task 1 — UI
-cd ui-automation && npm install
-npx playwright install chromium firefox webkit  # all three; covers desktop + mobile emulation
+**Task 1 — UI**
 
-# Task 2 — API
+```bash
+cd ui-automation && npm install
+npx playwright install chromium firefox webkit
+```
+
+**Task 2 — API**
+
+```bash
 cd ../api-automation && npm install
 ```
 
-Defaults are baked in. Override via shell env or local `.env` (gitignored — see `.env.example`):
+`npx playwright install` pulls all three browsers — Chromium, Firefox, WebKit — covering desktop runs and mobile emulation (`mobile-chrome` reuses Chromium, `mobile-safari` reuses WebKit).
 
-```
-# ui-automation
+Defaults are baked into `config/env.ts` in each sub-project. To override, drop a `.env` file in the relevant sub-project's root (gitignored — copy from `.env.example`). `dotenv/config` is imported at the top of each `config/env.ts`.
+
+```bash
+# ui-automation/.env
 BASE_URL=https://demoqa.com
 TESTER_USERNAME=tester
 TESTER_PASSWORD=Hello4123!
 
-# api-automation
+# api-automation/.env
 BASE_URL=https://restful-booker.herokuapp.com
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=password123
 ```
 
-In production these would come from CI secrets / vault — for a public-creds test brief, source defaults are fine.
-
 ## Running tests
 
+The two suites run independently — separate `package.json`, separate scripts, separate HTML report. There's no top-level command that runs both. Pick the suite you want, follow its three steps.
+
+### Run the API suite
+
+**1. Move into the API sub-project** (from the repo root):
+
 ```bash
-# Default (Chromium / API)
-cd ui-automation && npm test
-cd ../api-automation && npm test
-
-# Tagged subsets
-npm run test:smoke           # @smoke critical paths
-npm run test:bugs            # api-automation: @bugs intentionally-failing tier
-npm run test:all             # api-automation: main + bugs
-
-# UI debugging
-npm run test:headed          # visible browser
-npm run test:ui              # Playwright UI mode
-
-# UI cross-device (opt-in)
-npm run test:cross-browser   # Chromium + Firefox + WebKit
-npm run test:mobile          # Pixel 5 + iPhone 13 (emulated)
-
-# Reports + lint
-npm run test:report          # open last HTML report
-npm run lint                 # tsc --noEmit
+cd api-automation
 ```
 
-**Tags:**
-- `@smoke` — fast critical-path subset, runs in CI
-- `@bugs` — REST-compliance bug-surfacing (api-automation only); excluded from default `npm test`
+**2. Run the main suite** — excludes the `@bugs` intentionally-failing REST-correctness tier so smoke stays green:
+
+```bash
+npm test
+```
+
+**3. Verify the HTML report opens in your default browser.** It auto-opens locally on every run (suppressed in CI). If your environment blocks auto-open, open it manually:
+
+```bash
+npm run test:report
+```
+
+**Optional API commands** — run from `api-automation/`, after step 1:
+
+- `npm run test:bugs` — the `@bugs` tier on its own (intentionally fails — failures *are* the bug tickets)
+- `npm run test:all` — main suite **and** `@bugs` tier together
+- `npm run test:smoke` — `@smoke` critical paths only
+
+### Run the UI suite
+
+**1. Move into the UI sub-project** (from the repo root):
+
+```bash
+cd ui-automation
+```
+
+**2. Run the default suite** — Chromium only, covering desktop:
+
+```bash
+npm test
+```
+
+**3. Verify the HTML report opens in your default browser.** Same auto-open behaviour as the API suite. Manual fallback:
+
+```bash
+npm run test:report
+```
+
+**Optional UI commands** — run from `ui-automation/`, after step 1:
+
+- `npm run test:smoke` — `@smoke` critical paths only
+- `npm run test:cross-browser` — Chromium + Firefox + WebKit (slow; opt-in)
+- `npm run test:mobile` — Pixel 5 (Chrome) + iPhone 13 (Safari), emulated
+
 
 ## CI/CD
 
@@ -118,42 +166,31 @@ Two GitHub Actions workflows in `.github/workflows/` at repo root, each `path:`-
 - `ui-tests.yml` — Chromium on `ui-automation/**` changes. Type-checks, then `npm test`. HTML report uploaded.
 - `api-tests.yml` — runs on `api-automation/**` changes. Two jobs: `test` (main suite, blocking) and `bug-tracking` (`@bugs` tier, `continue-on-error: true`).
 
-Both read Node from `.nvmrc`. `CI=true` enables 2 retries to absorb transient flake (Heroku cold-starts, demoqa cold-loads); local runs do not retry. Cross-browser and mobile excluded from default CI to keep PR feedback fast — opt-in via npm scripts.
 
 ## Test design notes
 
-**Lightweight, standalone POMs.** Each POM is a self-contained class — no shared base class, no inheritance hop to follow when reading. Pages expose actions and locators; assertions live in the tests. `fixtures/pomFixtures.ts` extends Playwright's `test` so each spec destructures only the page objects it needs — POMs construct lazily, bound to that test's own `page`.
+**Standalone POMs.** Each POM is self-contained — no shared base class to chase. Pages expose actions and locators; assertions stay in the tests. `fixtures/pomFixtures.ts` extends Playwright's `test` so each spec destructures only what it needs.
 
-**Symmetric layout across UI and API.** Both sub-projects share the same shape: `config/env.ts` (env access), `test-data/` (env-derived fixtures), `clients/` (pure HTTP), `helpers/` (runtime bridges — ajv validation in API, cookie-to-API cleanup in UI). A reviewer flipping between suites recognises the pattern instantly.
+**Same layout on UI and API sides.** Both have `config/env.ts`, `test-data/`, `clients/`, `helpers/`. Switching between suites doesn't cost a re-orientation.
 
-**Factory functions over fixtures-of-everything.** `newBooking({ totalprice: 0 })` is more flexible than a fixture per scenario. Same idea for credentials — config exposes raw env values, `test-data/` builds the fixtures.
+**Factories and parameterised datasets, not fixtures-per-scenario.** Two complementary data-driven patterns: `newBooking({ totalprice: 0 })` for one-off overrides, and externalised datasets in `test-data/` for repeat-shaped scenarios. Datasets live in TypeScript when type safety, env coupling, or JSON-unrepresentable values matter (`authData.ts:negativeAuthCases`, `createBookingCases.ts:positiveCreateCases`); in JSON when they're pure static and benefit from being readable in any tool without code execution (`negativeBookingPayloads.json`). Each spec consumes its dataset via `for...of`, so adding a new case is a one-line edit to the dataset, not a code change in the test. Same idea for credentials: config exposes raw env values, `test-data/` builds the fixtures.
 
-**Schema validation everywhere on the API side.** Status code + a couple of field asserts isn't enough — schemas catch silent contract changes. Loaded by `helpers/validateSchema.ts`.
+**Schema validation on every API response.** Status code + schema match catches silent contract changes. Wired through `helpers/validateSchema.ts`. Detail in [`api-automation/README.md`](./api-automation/README.md).
 
-**Bug-surfacing tests as a separate tier.** Restful Booker has REST deviations (200 instead of 401, 500 instead of 400, 405 instead of 404). The main suite asserts what the API *does* (so smoke stays green); `tests/bugs/rest-compliance.spec.ts` asserts what it *should* do — those failures are the bug tickets.
+**Bug-surfacing tests as a separate tier.** Restful Booker has REST deviations (200 instead of 401, 500 instead of 400, 405 instead of 404). The main suite asserts what the API does (so smoke stays green); tests/bugs/rest-compliance.spec.ts asserts what it should do — those failures are the bug tickets.
 
-**Independent tests.** Each test creates and tears down its own data. No ordering dependencies, safe to parallelise. The end-to-end flow test is the deliberate exception.
+**Independent tests.** Each test owns its data end-to-end. API specs `POST /booking` in setup and `DELETE /booking/{id}` in `afterEach` using a token minted inside the same spec; UI specs clean the shared `tester` collection via API in both `beforeEach` and `afterEach`. The end-to-end UI flow (`tests/logged-in/e2e-flow.spec.ts`) is the deliberate exception — it walks search → add → re-add → verify → delete → verify in one chain, because the value of the test is the chain itself. UI cleanup pattern (fresh `APIRequestContext`, no `storageState`, demoqa quirks) detailed in [`ui-automation/README.md`](./ui-automation/README.md).
 
-**Session-per-test for UI logged-in flows.** demoqa has three quirks that storage state can't survive — single-session enforcement, mismatched-token sensitivity, cookie/localStorage gap. Full reasoning in the file header of `tests/logged-in/e2e-flow.spec.ts`.
+**No retries on assertion failures.** Retries hide bugs. Only retry is `CI=true ? 2 : 0` for transient network flake.
 
-**No retries on assertion failures.** Retries hide real bugs. The only retry is the `CI=true ? 2 : 0` setting for genuine transient network flake.
+## Trade-offs
+
+- demoqa shares backend state and enforces single-session per user, so logged-in UI tests run with `workers: 1`. The comment on that line in `playwright.config.ts` documents the escape hatch (per-test user registration via `POST /Account/v1/User`) for when scaling matters.
+- API main suite asserts actual behaviour to keep smoke green. REST-correct expectations live in the `@bugs` tier — failures there are bug tickets, not noise.
 
 ## AI assistance disclosure
 
-AI was used as a drafting tool. Every output was treated like a junior contributor's pull request — reviewed line-by-line, validated empirically, and revised for correctness, framework alignment, and maintainability before being merged.
+AI was used as a drafting aid to speed up repetitive work such as initial test scaffolding, helper utilities, and sample test data. All generated output was reviewed line-by-line, validated against live systems, and refined before inclusion.
 
-| Where | Tool | What AI drafted | QA review I performed |
-|---|---|---|---|
-| `api-automation/ai-generated/` | Claude (Sonnet) | Tests for two endpoints (POST /auth, POST /booking) | Structured review with 15 annotated changes; rewrote both. Both versions kept in repo with diff in `ai-generated/README.md`. |
-| API helpers (`clients/`, `helpers/`) | Claude | Auth/booking client helpers, ajv schema validator, report attachment helper | Reviewed each helper line-by-line; iteratively tuned ajv error formatting until failures surfaced every schema violation, not just the first. |
-| `test-data/` (booking, auth, filter datasets) | Claude | Factory + parameterised datasets | Validated each value empirically against the live API — caught one defect where AI marked `additionalneeds` as required (it isn't). Cross-checked filter datasets for collisions. |
-| Repetitive spec boilerplate | Claude | Request/assert/cleanup scaffolding | Reviewed every spec line-by-line; tightened over-loose schema assertions, added missing edge cases (null/empty/typed-wrong), removed duplicate happy paths. |
-| README polish | Claude | Section reordering, phrasing tweaks | Content, structure, and design decisions are mine. |
+AI did not drive architectural decisions. The overall design — including the bug-surfacing test tier, session handling strategy for UI tests, API cleanup approach, standalone POM structure, factory-based test data, JSON Schema validation, and locator strategy — was based on hands-on exploration of the APIs and UI, and on making trade-offs for reliability and maintainability.
 
-**What I did *not* delegate to AI.** Core framework decisions — the bug-surfacing tier pattern, session-per-test UI auth approach, locator strategy, dialog/modal handling, JSON Schema design, empirical API exploration. Those are judgment calls I wanted to own.
-
-**Validation rules I held AI output to:**
-- Empirical verification beats AI-asserted behaviour. A single Postman/codegen probe reveals what the API/UI actually does versus what AI assumed (200 with `Bad credentials` instead of 401, `Logout` vs `Log out`, etc.).
-- If I can't explain why a line is there, it doesn't go in.
-- Strict shape over loose assertions. `toEqual({ token: expect.any(String) })` over `toHaveProperty('token')`. Schema validation over field-by-field checks.
-- Test independence. AI-drafted specs often shared state implicitly; rewrote each spec to set up and tear down its own data.

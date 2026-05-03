@@ -30,23 +30,27 @@ test.describe('GET /booking', () => {
     const res = await request.get('/booking');
     await attachReqRes(testInfo, { method: 'GET' }, res);
 
-    expect(res.status()).toBe(200);
+    expect(res.status(), 'GET /booking returns 200').toBe(200);
     const body = await res.json();
     assertMatchesSchema(body, 'booking_id_list.json');
-    expect(body.length).toBeGreaterThan(0);
+    expect(body.length, 'shared sandbox always has at least one booking').toBeGreaterThan(0);
   });
 
   test('gets a specific booking by id', async ({ request }, testInfo) => {
     const res = await request.get(`/booking/${bookingId}`);
     await attachReqRes(testInfo, { method: 'GET' }, res);
 
-    expect(res.status()).toBe(200);
+    expect(res.status(), 'GET /booking/:id with valid id returns 200').toBe(200);
     const body = await res.json();
     assertMatchesSchema(body, 'booking.json');
-    expect(body.firstname).toBe(seedPayload.firstname);
-    expect(body.lastname).toBe(seedPayload.lastname);
-    expect(body.bookingdates.checkin).toBe(seedPayload.bookingdates.checkin);
-    expect(body.bookingdates.checkout).toBe(seedPayload.bookingdates.checkout);
+    expect(body.firstname, 'GET response firstname matches what was sent on create').toBe(seedPayload.firstname);
+    expect(body.lastname, 'GET response lastname matches what was sent on create').toBe(seedPayload.lastname);
+    expect(body.bookingdates.checkin, 'GET response checkin matches what was sent on create').toBe(
+      seedPayload.bookingdates.checkin,
+    );
+    expect(body.bookingdates.checkout, 'GET response checkout matches what was sent on create').toBe(
+      seedPayload.bookingdates.checkout,
+    );
   });
 
   test('returns 404 for a deleted booking id', async ({ request }, testInfo) => {
@@ -56,23 +60,33 @@ test.describe('GET /booking', () => {
     const deleteRes = await request.delete(`/booking/${bookingid}`, {
       headers: { Cookie: `token=${token}` },
     });
-    expect(deleteRes.status()).toBe(201); // restful-booker returns 201, not 204
+    expect(
+      deleteRes.status(),
+      'DELETE /booking/:id returns 201 (Restful Booker quirk; REST-correct 204 tracked as BUG-2)',
+    ).toBe(201);
 
     const res = await request.get(`/booking/${bookingid}`);
     await attachReqRes(testInfo, { method: 'GET' }, res, 'GET deleted');
 
-    expect(res.status()).toBe(404);
+    expect(res.status(), 'GET /booking/:id on a deleted id returns 404').toBe(404);
   });
 
   test('filters bookings by firstname', async ({ request }, testInfo) => {
-    // Same query-param mechanism for lastname/checkin/checkout — one field demonstrates it.
-    const endpoint = `/booking?firstname=${seedTarget.firstname}`;
-    const res = await request.get(endpoint);
+    // Seed firstname is per-run-unique (`Alice<timestamp>`). If the API actually
+    // filters, the result must be exactly our one booking; if it ignored the
+    // filter, we'd see every booking on the shared sandbox. Length-1 is the
+    // strongest assertion possible — the response shape (`[{ bookingid }]`)
+    // doesn't echo back the name field for a direct value comparison.
+    const res = await request.get(`/booking?firstname=${seedPayload.firstname}`);
     await attachReqRes(testInfo, { method: 'GET' }, res);
 
-    expect(res.status()).toBe(200);
+    expect(res.status(), 'GET /booking?firstname=… returns 200').toBe(200);
     const body = await res.json();
-    expect(body.some((b: { bookingid: number }) => b.bookingid === bookingId)).toBe(true);
+    assertMatchesSchema(body, 'booking_id_list.json');
+    expect(
+      body,
+      'per-run-unique firstname must narrow result to exactly our seeded booking — proves the API actually filtered',
+    ).toEqual([{ bookingid: bookingId }]);
   });
 
   test('returns empty result when filtering by a name that does not exist', async ({ request }, testInfo) => {
@@ -80,8 +94,8 @@ test.describe('GET /booking', () => {
     const res = await request.get(endpoint);
     await attachReqRes(testInfo, { method: 'GET' }, res);
 
-    expect(res.status()).toBe(200);
+    expect(res.status(), 'GET /booking?firstname=… returns 200 even when nothing matches').toBe(200);
     const body = await res.json();
-    expect(body).toHaveLength(0);
+    expect(body, 'unmatched firstname filter returns empty array (proves filter is doing real work)').toHaveLength(0);
   });
 });

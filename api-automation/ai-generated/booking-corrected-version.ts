@@ -1,9 +1,9 @@
 // Corrected version of booking-original-ai-output.ts, kept as a focused before/after diff.
 // What it fixes:
 //  - newBooking factory + futureDate helper + Playwright baseURL (no hardcoded data/URLs/dates)
-//  - field-by-field echo on the positive case (schema-by-example) instead of fragmented checks
-//  - non-overlapping positives + parameterised boundary cases via for-loop over a data array
-//  - negatives assert REST-standard 400 — failing test IS the bug indicator (README #10)
+//  - field-by-field echo on the positive case (schema-by-example) 
+//  - parameterised boundary cases via for-loop over a data array
+//  - negatives assert REST-standard 400 — failing test IS the bug indicator 
 //
 // What it deliberately does NOT do (kept out of scope to keep the diff readable):
 //  - Negative body validation: restful-booker returns plain-text errors on invalid

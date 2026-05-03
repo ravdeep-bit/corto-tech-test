@@ -14,10 +14,11 @@ export default defineConfig({
   // header for the three demoqa quirks that defeat it (single-session,
   // mismatched-token sensitivity, cookie/localStorage gap).
   // To scale beyond serial execution, switch to per-test user registration
-  // via `POST /Account/v1/User` (deterministic via isolation, not via locking).
+  // via `POST /Account/v1/User` (deterministic via isolation).
   workers: 1,
-  // HTML report auto-opens on failure for fast triage; never auto-opens in CI.
-  reporter: [['html', { open: 'on-failure' }], ['list']],
+  // HTML report auto-opens locally on every run for fast triage; never in CI
+  // (no browser/display, would error or hang).
+  reporter: [['html', { open: process.env.CI ? 'never' : 'always' }], ['list']],
 
   timeout: 60_000,
   expect: { timeout: 10_000 },

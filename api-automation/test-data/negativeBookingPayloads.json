@@ -1,0 +1,19 @@
+[
+  {
+    "description": "missing required firstname",
+    "payload": {
+      "lastname": "Doe",
+      "totalprice": 100,
+      "depositpaid": true,
+      "bookingdates": {
+        "checkin": "2099-01-01",
+        "checkout": "2099-01-05"
+      },
+      "additionalneeds": "Breakfast"
+    }
+  },
+  {
+    "description": "completely empty payload",
+    "payload": {}
+  }
+]

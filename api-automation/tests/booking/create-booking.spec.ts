@@ -1,8 +1,14 @@
-// POST /booking — create.
+// POST /booking — create. Positive + negative cases driven from
+// `test-data/createBookingCases.ts`. Adding a new scenario is a one-edit
+// change to that file, not a code change here.
 import { test, expect } from '@playwright/test';
 import { getToken } from '../../clients/auth';
 import { cleanupBookings } from '../../clients/booking';
 import { newBooking } from '../../test-data/bookingData';
+import {
+  positiveCreateCases,
+  negativeCreateCases,
+} from '../../test-data/createBookingCases';
 import { attachReqRes } from '../../helpers/reportAttachments';
 import { assertMatchesSchema } from '../../helpers/validateSchema';
 
@@ -20,65 +26,53 @@ test.describe('POST /booking', () => {
 
   // POST is the call under test → use request.post directly, not the helper.
 
-  test('creates a booking and returns all fields correctly', { tag: '@smoke' }, async ({ request }, testInfo) => {
-    const payload = newBooking();
-    const res = await request.post('/booking', { data: payload });
-    await attachReqRes(testInfo, { method: 'POST', body: payload }, res);
+  for (const { description, override, smoke } of positiveCreateCases) {
+    test(
+      `creates a booking — ${description}`,
+      smoke ? { tag: '@smoke' } : {},
+      async ({ request }, testInfo) => {
+        const payload = newBooking(override);
+        const res = await request.post('/booking', { data: payload });
+        await attachReqRes(testInfo, { method: 'POST', body: payload }, res);
 
-    expect(res.status()).toBe(200);
-    const body = await res.json();
-    assertMatchesSchema(body, 'create_booking_response.json');
-    createdIds.push(body.bookingid);
+        expect(
+          res.status(),
+          `POST /booking — ${description}: returns 200 (Restful Booker quirk; REST-correct 201 tracked as BUG-1)`,
+        ).toBe(200);
+        const body = await res.json();
+        assertMatchesSchema(body, 'create_booking_response.json');
+        createdIds.push(body.bookingid);
 
-    expect(body.booking.firstname).toBe(payload.firstname);
-    expect(body.booking.lastname).toBe(payload.lastname);
-    expect(body.booking.totalprice).toBe(payload.totalprice);
-    expect(body.booking.depositpaid).toBe(payload.depositpaid);
-    expect(body.booking.bookingdates.checkin).toBe(payload.bookingdates.checkin);
-    expect(body.booking.bookingdates.checkout).toBe(payload.bookingdates.checkout);
-    expect(body.booking.additionalneeds).toBe(payload.additionalneeds);
-  });
+        // Response echoes back every field we sent — same check across all
+        // positive cases. Optional `additionalneeds` only checked when present.
+        expect(body.booking.firstname, `${description}: response echoes firstname`).toBe(payload.firstname);
+        expect(body.booking.lastname, `${description}: response echoes lastname`).toBe(payload.lastname);
+        expect(body.booking.totalprice, `${description}: response echoes totalprice`).toBe(payload.totalprice);
+        expect(body.booking.depositpaid, `${description}: response echoes depositpaid`).toBe(payload.depositpaid);
+        expect(body.booking.bookingdates.checkin, `${description}: response echoes checkin`).toBe(
+          payload.bookingdates.checkin,
+        );
+        expect(body.booking.bookingdates.checkout, `${description}: response echoes checkout`).toBe(
+          payload.bookingdates.checkout,
+        );
+        if (payload.additionalneeds !== undefined) {
+          expect(body.booking.additionalneeds, `${description}: response echoes additionalneeds`).toBe(
+            payload.additionalneeds,
+          );
+        }
+      },
+    );
+  }
 
-  test('creates a booking without optional additionalneeds field', async ({ request }, testInfo) => {
-    const payload = newBooking({ additionalneeds: undefined });
-    const res = await request.post('/booking', { data: payload });
-    await attachReqRes(testInfo, { method: 'POST', body: payload }, res);
+  for (const { description, payload } of negativeCreateCases) {
+    test(`rejects booking with ${description}`, async ({ request }, testInfo) => {
+      const res = await request.post('/booking', { data: payload as object });
+      await attachReqRes(testInfo, { method: 'POST', body: payload }, res);
 
-    expect(res.status()).toBe(200);
-    const body = await res.json();
-    createdIds.push(body.bookingid);
-
-    expect(body.booking.firstname).toBe(payload.firstname);
-  });
-
-  test('creates a booking with zero totalprice', async ({ request }, testInfo) => {
-    const payload = newBooking({ totalprice: 0 });
-    const res = await request.post('/booking', { data: payload });
-    await attachReqRes(testInfo, { method: 'POST', body: payload }, res);
-
-    expect(res.status()).toBe(200);
-    const body = await res.json();
-    createdIds.push(body.bookingid);
-
-    expect(body.booking.totalprice).toBe(0);
-  });
-
-  test('rejects booking with missing required firstname', async ({ request }, testInfo) => {
-    // 500 (actual), not 400 (REST-correct — see BUG-5).
-    const payload = newBooking();
-    delete (payload as Partial<typeof payload>).firstname;
-
-    const res = await request.post('/booking', { data: payload });
-    await attachReqRes(testInfo, { method: 'POST', body: payload }, res);
-
-    expect(res.status()).toBe(500);
-  });
-
-  test('rejects booking with completely empty payload', async ({ request }, testInfo) => {
-    // 500 (actual), not 400 (REST-correct — see BUG-5).
-    const res = await request.post('/booking', { data: {} });
-    await attachReqRes(testInfo, { method: 'POST', body: {} }, res);
-
-    expect(res.status()).toBe(500);
-  });
+      expect(
+        res.status(),
+        `POST /booking with ${description} returns 500 (Restful Booker quirk; REST-correct 400 tracked as BUG-5)`,
+      ).toBe(500);
+    });
+  }
 });

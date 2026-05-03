@@ -10,6 +10,7 @@ Project-specific design depth for the API suite. **For setup, running tests, con
 - **Cookie-format auth** (`Cookie: token=<token>`) for mutations — chosen over HTTP Basic to match the docs' canonical example.
 - **`fullyParallel: true` is safe** because every test creates its own booking and `beforeAll` only fetches a token.
 - **Heroku cold-starts tolerated, not retried locally** — CI enables 2 retries; local runs fail fast.
+- **Data-driven cases live under `test-data/`** — mix of TypeScript and JSON depending on what the data needs to express. JSON for pure static negatives (`negativeBookingPayloads.json`) — readable in any tool, no code execution needed. TypeScript for cases that need type safety, env coupling, or JSON-unrepresentable values like `additionalneeds: undefined` (`authData.ts`, `createBookingCases.ts`, `bookingFilterData.ts`). Each spec consumes its dataset via `for...of` so adding a new case is a one-line edit to the dataset, not a code change in the spec.
 
 ## Test coverage
 
@@ -18,9 +19,9 @@ Project-specific design depth for the API suite. **For setup, running tests, con
 | Endpoint | Tests | Highlights |
 |---|---|---|
 | GET /ping | 1 | Status 201, plain-text body "Created" |
-| POST /auth | 9 | Valid creds → token; 7 negative-creds cases (invalid password, unknown user, missing fields, empty body, empty strings, null); fresh token on every successful call |
-| POST /booking | 5 | Full payload, optional field omitted, zero price, missing required field, empty payload |
-| GET /booking | 5 | List, get-by-id, 404 after delete, filter-by-firstname (verifies created ID is matched), no-such-user empty-result negative |
+| POST /auth | 9 | Valid creds → token; 7 negative-creds cases (invalid password, unknown user, missing fields, empty body, empty strings, null) parameterised from `test-data/authData.ts`; fresh token on every successful call |
+| POST /booking | 5 | Positive boundary cases (full payload / optional-omitted / zero-price) parameterised from `test-data/createBookingCases.ts`; negative cases (missing required / empty payload) loaded from `test-data/negativeBookingPayloads.json` |
+| GET /booking | 5 | List, get-by-id, 404 after delete, filter-by-firstname (per-run-unique seed → exact length-1 match proves the API actually filtered), no-such-user empty-result negative |
 | PUT /booking/:id | 3 | Full update + GET-after-PUT validation, 403 without auth, 405 on deleted ID |
 | PATCH /booking/:id | 2 | Partial update + GET-after-PATCH validation, 403 without auth |
 | DELETE /booking/:id | 4 | Delete + GET-after-DELETE returns 404, 403 without auth, 403 with invalid token, 405 on second delete (idempotency) |
@@ -29,7 +30,7 @@ Project-specific design depth for the API suite. **For setup, running tests, con
 
 ## Bug-surfacing tests (`tests/bugs/`)
 
-Asserts what the API *should* return per REST/HTTP. These tests fail intentionally — failures *are* the bug tickets.
+Asserts what the API *should* return per REST/HTTP. These tests fail as per API deviations from REST conventions
 
 | # | Bug | Asserted | Actual |
 |---|---|---|---|
@@ -40,38 +41,12 @@ Asserts what the API *should* return per REST/HTTP. These tests fail intentional
 | BUG-5 | `POST /booking` with missing required fields should return 400 Bad Request | `toBe(400)` | 500 |
 | BUG-6 | Mutations on a non-existent booking ID should return 404 Not Found | `toBe(404)` | 405 |
 
-## Why direct `request` calls in tests
-
-Tests in this project call Playwright's built-in `{ request }` fixture directly rather than going through Service Object wrappers. For an API surface this small, the wrappers add boilerplate without value. Helpers exist only for things genuinely shared across specs: `clients/auth.ts` (`getToken`), `clients/booking.ts` (setup/cleanup + `Booking` type), `helpers/validateSchema.ts` (`assertMatchesSchema(body, 'foo.json')`), and the JSON Schema files in `schemas/` (every schema is `additionalProperties: false` so unexpected fields fail validation). Specific value assertions stay inline in the tests where they're read.
-
-## Inferred field requirements (POST /booking)
-
-Confirmed via Postman probes — all `Booking` fields are required except `additionalneeds` (omitting any required field returns 500; omitting `additionalneeds` returns 200).
-
-## API deviations from REST conventions
-
-Behaviours where the target API departs from standard REST conventions. The main test suite asserts what the API does (so the suite is green); the bug-surfacing suite asserts what it *should* do (so failures track the bugs).
-
-| # | Deviation | Asserted in main suite | Surfaced as bug in `tests/bugs/` |
-|---|---|---|---|
-| 1 | `POST /auth` invalid creds returns 200, not 401 | `auth.spec.ts` (asserts 200 + no token) | BUG-4 |
-| 2 | `GET /ping` returns 201, not 200 | `ping.spec.ts` (asserts 201) | BUG-3 |
-| 3 | `GET /ping` body is plain text "Created", not JSON | `ping.spec.ts` (uses `.text()`) | — |
-| 4 | `POST /booking` returns 200, not 201 | `create-booking.spec.ts` (asserts 200) | BUG-1 |
-| 5 | `DELETE /booking/:id` returns 201, not 204 | `delete-booking.spec.ts` (asserts 201) | BUG-2 |
-| 6 | `PUT` requires full payload (partial returns 400) | All PUT tests pass a complete `newBooking()` | — |
-| 7 | `PUT/PATCH/DELETE` require auth (cookie or basic) | All mutating tests send `Cookie: token=...` | — |
-| 8 | Mutations on non-existent IDs return 405 (REST-correct: 404) | Main specs assert 405 | BUG-6 |
-| 9 | `GET /booking` returns array of `{ bookingid }` only | List tests assert this shape | — |
-| 10 | Missing required fields on `POST /booking` return 500, not 400 | — | BUG-5 |
-| 11 | Heroku cold-start latency (15–30s on first request) | 60s test timeout absorbs it | — |
-
 ## Future work / production considerations
 
 Out of scope for this submission, but the natural next layers for a real production API:
 
-- **Multi-environment config** — separate dev/staging/prod targets keyed off `NODE_ENV` or environment-prefixed env vars, with credentials always injected from CI secret stores or a vault.
-- **Security testing** — auth fuzzing (malformed tokens, expired sessions, privilege escalation), injection probes (SQL, NoSQL, command), rate-limit assertions, CORS verification, and a security-headers audit (CSP, HSTS, X-Content-Type-Options).
+- **Multi-environment config** — separate dev/staging/prod targets keyed off `NODE_ENV` or environment-prefixed env vars.
+- **Security testing** — auth fuzzing (malformed tokens, expired sessions, privilege escalation), injection probes, rate-limit assertions etc.
 - **Load / stress testing** — k6 or Artillery scenarios to assert performance budgets (P95 latency, error rate under concurrency) and degradation behaviour at scale.
 
 

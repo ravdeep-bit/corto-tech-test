@@ -1,8 +1,12 @@
 // Original unmodified AI output — auth test suite.
 //
+// AI tool: Claude (Sonnet 4.5).
 // Prompt used:
 //   "Generate Playwright API tests for the POST /auth endpoint of restful-booker.
 //    Include positive and negative cases."
+//
+// The corrections in `auth-corrected-version.ts`
+// show what review closes between AI's first draft and production-ready code.o
 //
 // Typical AI failure modes visible in this generation:
 //   - Hardcoded BASE_URL instead of Playwright `baseURL` config

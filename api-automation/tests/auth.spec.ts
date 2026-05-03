@@ -8,10 +8,12 @@ test.describe('POST /auth', () => {
     const res = await request.post('/auth', { data: VALID_CREDS });
     await attachReqRes(testInfo, { method: 'POST', body: VALID_CREDS }, res);
 
-    expect(res.status()).toBe(200);
+    expect(res.status(), 'POST /auth with valid creds returns 200').toBe(200);
     const body = await res.json();
-    expect(body).toEqual({ token: expect.any(String) });
-    expect(body.token.length).toBeGreaterThan(0);
+    expect(body, 'response shape is exactly { token: string } — no extra fields permitted').toEqual({
+      token: expect.any(String),
+    });
+    expect(body.token.length, 'token must be a non-empty string').toBeGreaterThan(0);
   });
 
   // Restful Booker quirk: returns 200 with `{ reason: 'Bad credentials' }` rather
@@ -21,8 +23,14 @@ test.describe('POST /auth', () => {
       const res = await request.post('/auth', { data });
       await attachReqRes(testInfo, { method: 'POST', body: data }, res);
 
-      expect(res.status()).toBe(200);
-      expect(await res.json()).toEqual({ reason: 'Bad credentials' });
+      expect(
+        res.status(),
+        `POST /auth with ${description} returns 200 (Restful Booker quirk; REST-correct 401 tracked as BUG-4)`,
+      ).toBe(200);
+      expect(
+        await res.json(),
+        `POST /auth with ${description} returns body { reason: 'Bad credentials' } and no token`,
+      ).toEqual({ reason: 'Bad credentials' });
     });
   }
 
@@ -35,8 +43,10 @@ test.describe('POST /auth', () => {
     await attachReqRes(testInfo, { method: 'POST', body: VALID_CREDS }, secondRes, 'second auth');
     const second = await secondRes.json();
 
-    expect(first.token).toEqual(expect.any(String));
-    expect(second.token).toEqual(expect.any(String));
-    expect(first.token).not.toBe(second.token);
+    expect(first.token, 'first auth call must return a token').toEqual(expect.any(String));
+    expect(second.token, 'second auth call must return a token').toEqual(expect.any(String));
+    expect(first.token, 'each successful auth must issue a fresh token (server is not caching)').not.toBe(
+      second.token,
+    );
   });
 });

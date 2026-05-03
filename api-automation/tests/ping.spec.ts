@@ -10,7 +10,7 @@ test.describe('GET /ping', () => {
     const res = await request.get('/ping');
     await attachReqRes(testInfo, { method: 'GET' }, res);
 
-    expect(res.status()).toBe(201);
-    expect(await res.text()).toBe('Created');
+    expect(res.status(), 'GET /ping returns 201 (Restful Booker quirk; REST-correct 200 tracked as BUG-3)').toBe(201);
+    expect(await res.text(), 'GET /ping body is plain text "Created"').toBe('Created');
   });
 });

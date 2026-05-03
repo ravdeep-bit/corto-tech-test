@@ -23,11 +23,14 @@ test.describe('DELETE /booking/:id', () => {
       headers: { Cookie: `token=${token}` },
     });
     await attachReqRes(testInfo, { method: 'DELETE' }, deleteRes, 'DELETE');
-    expect(deleteRes.status()).toBe(201);
+    expect(
+      deleteRes.status(),
+      'DELETE /booking/:id with valid auth returns 201 (Restful Booker quirk; REST-correct 204 tracked as BUG-2)',
+    ).toBe(201);
 
     const getRes = await request.get(`/booking/${bookingid}`);
     await attachReqRes(testInfo, { method: 'GET' }, getRes, 'GET verify deleted');
-    expect(getRes.status()).toBe(404);
+    expect(getRes.status(), 'GET-after-DELETE returns 404 (resource is actually gone)').toBe(404);
   });
 
   test('rejects delete without auth token', async ({ request }, testInfo) => {
@@ -37,7 +40,7 @@ test.describe('DELETE /booking/:id', () => {
     const res = await request.delete(`/booking/${bookingid}`);
     await attachReqRes(testInfo, { method: 'DELETE' }, res);
 
-    expect(res.status()).toBe(403);
+    expect(res.status(), 'DELETE /booking/:id without auth token returns 403').toBe(403);
   });
 
   test('rejects delete with invalid token', async ({ request }, testInfo) => {
@@ -49,7 +52,7 @@ test.describe('DELETE /booking/:id', () => {
     });
     await attachReqRes(testInfo, { method: 'DELETE' }, res);
 
-    expect(res.status()).toBe(403);
+    expect(res.status(), 'DELETE /booking/:id with invalid token returns 403 (no token-format leniency)').toBe(403);
   });
 
   test('second delete on the same booking returns 405 (idempotency)', async ({ request }, testInfo) => {
@@ -61,12 +64,18 @@ test.describe('DELETE /booking/:id', () => {
       headers: { Cookie: `token=${token}` },
     });
     await attachReqRes(testInfo, { method: 'DELETE' }, firstRes, 'first delete');
-    expect(firstRes.status()).toBe(201);
+    expect(
+      firstRes.status(),
+      'first DELETE returns 201 (Restful Booker quirk; REST-correct 204 tracked as BUG-2)',
+    ).toBe(201);
 
     const secondRes = await request.delete(`/booking/${bookingid}`, {
       headers: { Cookie: `token=${token}` },
     });
     await attachReqRes(testInfo, { method: 'DELETE' }, secondRes, 'second delete');
-    expect(secondRes.status()).toBe(405);
+    expect(
+      secondRes.status(),
+      'second DELETE on same id returns 405 (Restful Booker quirk; REST-correct 404 tracked as BUG-6)',
+    ).toBe(405);
   });
 });

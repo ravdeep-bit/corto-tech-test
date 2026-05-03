@@ -1,8 +1,12 @@
 // Original unmodified AI output — demonstrating common AI generation flaws.
 //
+// AI tool: Claude (Sonnet 4.5).
 // Prompt used:
 //   "Generate Playwright API tests for the POST /booking endpoint of restful-booker
 //    in TypeScript. Include positive and negative test cases."
+//
+// The corrections in `booking-corrected-version.ts`
+// show what review closes between AI's first draft and production-ready code.
 //
 // AI typically produces workable code with several anti-patterns:
 //   - Hardcoded fixture data instead of a factory
@@ -10,9 +14,6 @@
 //   - Hardcoded future dates that silently roll into the past as time passes
 //     (payload data should be future-relative, e.g. today + N)
 //   - Weak negative assertions (single status code, no body validation)
-//   - Redundant positive tests covering overlapping ground
-//   - Field validation is incomplete and scattered across redundant tests
-//     instead of one comprehensive schema-by-example check on the positive case
 //   - No test isolation discipline (no fresh data per test, no cleanup)
 //   - Asserts the wrong status (400 for missing fields) by assuming REST
 //     convention rather than empirically verifying — actual API returns 500
