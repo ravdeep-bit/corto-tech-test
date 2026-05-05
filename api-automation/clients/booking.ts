@@ -41,10 +41,22 @@ export async function createBookingForTest(
 }
 
 // Deletes every booking ID in the `ids` array. Use from afterAll.
-export async function cleanupBookings(request: APIRequestContext, token: string | null, ids: number[]): Promise<void> {
+export async function cleanupBookings(
+  request: APIRequestContext,
+  token: string,
+  ids: number[]
+): Promise<void> {
   if (!token) return;
-  while (ids.length > 0) {
-    const id = ids.pop()!;
-    await request.delete(`/booking/${id}`, { headers: { Cookie: `token=${token}` } }).catch(() => {});
+
+  for (const id of ids) {
+    try {
+      await request.delete(`/booking/${id}`, {
+        headers: { Cookie: `token=${token}` }
+      });
+    } catch {
+      // ignore cleanup errors
+    }
   }
 }
+
+  

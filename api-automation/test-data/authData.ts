@@ -49,3 +49,6 @@ export const negativeAuthCases: NegativeAuthCase[] = [
     data: { username: null, password: null },
   },
 ];
+
+
+const name: string = 123
