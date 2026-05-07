@@ -32,10 +32,11 @@ export function assertMatchesSchema(data: unknown, schemaFile: string): void {
     throw new Error(`Schema not found in schemas/: ${schemaFile}`);
   }
   const valid = validator(data);
-  if (!valid) {
+//  if (!valid) {
     const errors = (validator.errors || [])
       .map((e) => `  ${e.instancePath || '/'} ${e.message}`)
       .join('\n');
-    expect(valid, `Schema validation failed (${schemaFile}):\n${errors}`).toBe(true);
-  }
+    //expect(valid, `Schema validation failed (${schemaFile}):\n${errors}`).toBe(true);
+    expect(valid, `Schema validation (${schemaFile})${valid ? ' passed' : ` failed:\n${errors}`}`).toBe(true);
+ // }
 }
